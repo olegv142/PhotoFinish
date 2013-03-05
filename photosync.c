@@ -34,7 +34,7 @@ static int phs_get_sample(char ir_on)
 	__disable_interrupt();
 	// Reconfigure pins
 	if (ir_on)
-		P1OUT |= IR_BIT;
+		P1OUT |= IR_BITS;
 	P2DIR &= ~BIT0;
 	P2SEL |= BIT0;
 	// Start 2 channels conversion. The first channel gives us the photocurrent.
@@ -47,7 +47,7 @@ static int phs_get_sample(char ir_on)
 		__no_operation();
 	// Reconfigure pins back
 	if (ir_on)
-		P1OUT &= ~IR_BIT;
+		P1OUT &= ~IR_BITS;
 	P2DIR |= BIT0;
 	P2SEL &= ~BIT0;
 	// Wait zero channel conversion completion

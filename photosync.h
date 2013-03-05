@@ -58,7 +58,7 @@ static inline void phs_init(struct phs_ctx* ctx)
 	P2OUT &= ~(BIT0|BIT1);
 	P2DIR |= BIT0|BIT1;
 	P2SEL |= BIT5; // P2.5 is refereference output
-	P1DS |= IR_BIT; // Max drive strength for IR LED
+	P1DS |= IR_BITS; // Max drive strength for IR LEDs
 	// Configure reference: 1.5V, output enable
 	REFCTL0 = REFMSTR|REFON|REFOUT;
 	ctx->sht = 0;

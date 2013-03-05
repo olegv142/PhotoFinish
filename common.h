@@ -3,8 +3,8 @@
 //#define SILENT
 
 #define LED_BIT  BIT0
-#define IR_BIT   BIT6
-#define BTN_BIT  BIT5
+#define IR_BITS (BIT5|BIT6)
+#define BTN_BIT  BIT4
 
 #ifndef SILENT
 #define BEEP_BIT BIT7
