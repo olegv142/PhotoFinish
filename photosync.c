@@ -15,6 +15,26 @@
 #define DET_SNR_THR 6
 #define DET_SIG_FRACTION 4
 
+//#define ADC_INP_CHANEL ADC12INCH_10 /* Temp sensor for testing */
+#define ADC_INP_CHANEL ADC12INCH_0
+#define ADC_ZER_CHANEL ADC12INCH_1
+#define ADC_REF ADC12SREF_1 // V(R+) = VREF+ and V(R-) = AVSS
+#define ADC_CLR_SHT 2
+#define IR_DELAY 100
+
+static inline void phs_adc_init(unsigned sht, unsigned chan)
+{
+	ADC12CTL0  = ADC12ON|(sht << 8);
+	ADC12CTL1  = ADC12SSEL_2|ADC12SHP; // MCLK
+	ADC12MCTL0 = chan|ADC_REF;
+	ADC12CTL0 |= ADC12ENC;
+}
+
+static inline void phs_adc_off()
+{
+	ADC12CTL0 &= ~(ADC12ON|ADC12ENC);
+}
+
 /*
  * The photosensor design is simple/stupid. There are only 2
  * external components - IR LED and photodiode (PHD). The
@@ -28,47 +48,56 @@
  * sample-hold time.
  */
 
-static int phs_get_sample(char ir_on)
+static int phs_measure(unsigned sht, unsigned chan, char phd_in, char ir_on)
 {
 	// Disable interrupts for predictable timing
 	__disable_interrupt();
+	// Initialize ADC
+	phs_adc_init(sht, chan);
 	// Reconfigure pins
-	if (ir_on)
+	if (ir_on) {
 		P1OUT |= IR_BITS;
-	P2DIR &= ~BIT0;
-	P2SEL |= BIT0;
+		// Wait power-related oscillations to settle
+		__delay_cycles(IR_DELAY);
+	}
+	if (phd_in) {
+		P2DIR &= ~BIT0;
+		P2SEL |= BIT0;
+	}
 	// Start 2 channels conversion. The first channel gives us the photocurrent.
 	// The only purpose of the second channel is to reset sample-hold capacitor.
 	ADC12CTL0 |= ADC12SC;
 	// The conversion is started so we can enable interrupts.
 	__enable_interrupt();
 	// Wait conversion completion
-	while (!(ADC12IFG & ADC12IFG7))
+	while (!(ADC12IFG & ADC12IFG0))
 		__no_operation();
 	// Reconfigure pins back
-	if (ir_on)
+	if (ir_on) {
 		P1OUT &= ~IR_BITS;
-	P2DIR |= BIT0;
-	P2SEL &= ~BIT0;
-	// Wait zero channel conversion completion
-	while (!(ADC12IFG & ADC12IFG8))
-		__no_operation();
+	}
+	if (phd_in) {
+		P2DIR |= BIT0;
+		P2SEL &= ~BIT0;
+	}
+	// Turn off ADC
+	phs_adc_off();
 	// Return result
-	return ADC12MEM7;
+	return ADC12MEM0;
+}
+
+static inline int phs_get_sample(unsigned sht, char ir_on)
+{
+	// Dummy measurement to discharge sample-hold capacitor
+	phs_measure(ADC_CLR_SHT, ADC_ZER_CHANEL, 0, 0);
+	return phs_measure(sht,  ADC_INP_CHANEL, 1, ir_on);
 }
 
 void phs_acquire(struct phs_ctx* ctx)
 {
 	/* Run 2 measurement cycles with IR off/on */
-	ctx->sample[0] = phs_get_sample(0);
-	ctx->sample[1] = phs_get_sample(1);
-}
-
-static inline void phs_reinit(struct phs_ctx* ctx)
-{
-	ADC12CTL0 &= ~(ADC12ON|ADC12ENC);
-	phs_init_adc(ctx);
-	phs_restart(ctx);
+	ctx->sample[0] = phs_get_sample(ctx->sht, 0);
+	ctx->sample[1] = phs_get_sample(ctx->sht, 1);
 }
 
 static inline int abs(int v)
@@ -93,12 +122,12 @@ void phs_run(struct phs_ctx* ctx)
 		// Auto scaling
 		if (ctx->sht > 0 && v1 > HI_THR) {
 			--ctx->sht;
-			phs_reinit(ctx);
+			phs_restart(ctx);
 			return;
 		}
 		if (ctx->sht < SHT_MAX && v1 < LO_THR) {
 			++ctx->sht;
-			phs_reinit(ctx);
+			phs_restart(ctx);
 			return;
 		}
 	}

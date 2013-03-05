@@ -37,32 +37,18 @@ static inline void phs_restart(struct phs_ctx* ctx)
 	ctx->ready = 0;
 }
 
-//#define ADC_INP_CHANEL ADC12INCH_10 /* Temp sensor for testing */
-#define ADC_INP_CHANEL ADC12INCH_0
-#define ADC_ZER_CHANEL ADC12INCH_1
-#define ADC_REF ADC12SREF_1 // V(R+) = VREF+ and V(R-) = AVSS
-#define ADC_CLR_SHT 2
-
-static inline void phs_init_adc(struct phs_ctx* ctx)
-{
-	ADC12CTL0  = ADC12ON|ADC12MSC|((int)ctx->sht << 8)|(ADC_CLR_SHT << 12);
-	ADC12CTL1  = ADC12SSEL_2|ADC12SHP|ADC12CSTARTADD_7|ADC12CONSEQ_1; // MCLK, conversion sequence starting from addr 7
-	ADC12MCTL7 = ADC_INP_CHANEL|ADC_REF;
-	ADC12MCTL8 = ADC_ZER_CHANEL|ADC_REF|ADC12EOS;
-	ADC12CTL0 |= ADC12ENC;
-}
-
 static inline void phs_init(struct phs_ctx* ctx)
 {
 	// Configure pins
+	// P2.0 is connected to the photo-diode
+	// P2.1 is used to provide zero level to ADC input
 	P2OUT &= ~(BIT0|BIT1);
 	P2DIR |= BIT0|BIT1;
-	P2SEL |= BIT5; // P2.5 is refereference output
+	P2SEL |= BIT5;   // P2.5 is refereference output
 	P1DS |= IR_BITS; // Max drive strength for IR LEDs
 	// Configure reference: 1.5V, output enable
 	REFCTL0 = REFMSTR|REFON|REFOUT;
 	ctx->sht = 0;
-	phs_init_adc(ctx);
 }
 
 void phs_run(struct phs_ctx* ctx);
