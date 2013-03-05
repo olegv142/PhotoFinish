@@ -20,7 +20,6 @@
 #define ADC_ZER_CHANEL ADC12INCH_1
 #define ADC_REF ADC12SREF_1 // V(R+) = VREF+ and V(R-) = AVSS
 #define ADC_CLR_SHT 2
-#define IR_DELAY 100
 
 static inline void phs_adc_init(unsigned sht, unsigned chan)
 {
@@ -48,19 +47,13 @@ static inline void phs_adc_off()
  * sample-hold time.
  */
 
-static int phs_measure(unsigned sht, unsigned chan, char phd_in, char ir_on)
+static inline int phs_measure(unsigned sht, unsigned chan, char inp_en)
 {
 	// Disable interrupts for predictable timing
 	__disable_interrupt();
 	// Initialize ADC
 	phs_adc_init(sht, chan);
-	// Reconfigure pins
-	if (ir_on) {
-		P1OUT |= IR_BITS;
-		// Wait power-related oscillations to settle
-		__delay_cycles(IR_DELAY);
-	}
-	if (phd_in) {
+	if (inp_en) {
 		P2DIR &= ~BIT0;
 		P2SEL |= BIT0;
 	}
@@ -72,11 +65,7 @@ static int phs_measure(unsigned sht, unsigned chan, char phd_in, char ir_on)
 	// Wait conversion completion
 	while (!(ADC12IFG & ADC12IFG0))
 		__no_operation();
-	// Reconfigure pins back
-	if (ir_on) {
-		P1OUT &= ~IR_BITS;
-	}
-	if (phd_in) {
+	if (inp_en) {
 		P2DIR |= BIT0;
 		P2SEL &= ~BIT0;
 	}
@@ -86,11 +75,15 @@ static int phs_measure(unsigned sht, unsigned chan, char phd_in, char ir_on)
 	return ADC12MEM0;
 }
 
-static inline int phs_get_sample(unsigned sht, char ir_on)
+static int phs_get_sample(unsigned sht, char ir_on)
 {
+	int sample;
+	if (ir_on) P1OUT |= IR_BITS;
 	// Dummy measurement to discharge sample-hold capacitor
-	phs_measure(ADC_CLR_SHT, ADC_ZER_CHANEL, 0, 0);
-	return phs_measure(sht,  ADC_INP_CHANEL, 1, ir_on);
+	phs_measure(ADC_CLR_SHT, ADC_ZER_CHANEL, 0);
+	sample = phs_measure(sht,  ADC_INP_CHANEL, 1);
+	if (ir_on) P1OUT &= ~IR_BITS;
+	return sample;
 }
 
 void phs_acquire(struct phs_ctx* ctx)
