@@ -19,7 +19,7 @@
 #define ADC_INP_CHANEL ADC12INCH_0
 #define ADC_ZER_CHANEL ADC12INCH_1
 #define ADC_REF ADC12SREF_1 // V(R+) = VREF+ and V(R-) = AVSS
-#define ADC_CLR_SHT 2
+#define ADC_CLR_SHT 3
 
 static inline void phs_adc_init(unsigned sht, unsigned chan)
 {
@@ -85,11 +85,18 @@ static int phs_get_sample(unsigned sht, char ir_on)
 	return sample;
 }
 
-void phs_acquire(struct phs_ctx* ctx)
+static void phs_acquire(struct phs_ctx* ctx)
 {
-	/* Run 2 measurement cycles with IR off/on */
-	ctx->sample[0] = phs_get_sample(ctx->sht, 0);
-	ctx->sample[1] = phs_get_sample(ctx->sht, 1);
+	int loops, sht_ = (SHT_MAX - ctx->sht) / 4;
+	ctx->sample[0] = ctx->sample[1] = 0;
+	// Run up to 8 cycles
+	for (loops = 1 << sht_; loops; --loops) {
+		/* Run 2 measurement cycles with IR off/on */
+		ctx->sample[0] += phs_get_sample(ctx->sht, 0);
+		ctx->sample[1] += phs_get_sample(ctx->sht, 1);
+	}
+	ctx->sample[0] >>= sht_;
+	ctx->sample[1] >>= sht_;
 }
 
 static inline int abs(int v)
