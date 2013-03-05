@@ -57,10 +57,9 @@ static inline int phs_measure(unsigned sht, unsigned chan, char inp_en)
 		P2DIR &= ~BIT0;
 		P2SEL |= BIT0;
 	}
-	// Start 2 channels conversion. The first channel gives us the photocurrent.
-	// The only purpose of the second channel is to reset sample-hold capacitor.
+	// Start conversion
 	ADC12CTL0 |= ADC12SC;
-	// The conversion is started so we can enable interrupts.
+	// The conversion is started so we can enable interrupts
 	__enable_interrupt();
 	// Wait conversion completion
 	while (!(ADC12IFG & ADC12IFG0))
