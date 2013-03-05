@@ -93,7 +93,7 @@ static int wait_start_worker(struct rf_buff* ctx)
 		if (g_phs.overload)
 			display_msg_("---", 1, 3);
 		else if (g_phs.ready)
-			display_hex_(aver_value(&g_phs.asample[1]), 1, 3);
+			display_hex_(aver_value(&g_phs.asignal[1]), 1, 3);
 		else
 			display_clr_(1, 3);
 	}
