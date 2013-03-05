@@ -79,8 +79,8 @@ static int wait_start_worker(struct rf_buff* ctx)
 	{
 		if (g_phs.detected) {
 			// Restart detection
-			phs_restart(&g_phs);
 			phs_set_mode(&g_phs, 1, 1);
+			phs_restart(&g_phs);
 			P1OUT |= BEEP_BIT;
 		} else if (g_phs.ready)
 			P1OUT &= ~BEEP_BIT;
@@ -193,6 +193,7 @@ int main( void )
 	for (;;) {
 		wait_start();
 		phs_set_mode(&g_phs, 0, 1);
+		phs_restart(&g_phs);
 		g_state = st_started;
 		detect_finish();
 		phs_set_mode(&g_phs, 1, 0);
