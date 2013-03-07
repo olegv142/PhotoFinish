@@ -11,3 +11,6 @@
 #else
 #define BEEP_BIT 0
 #endif
+
+#define REPEAT_MSGS 2
+#define REPEAT_MSGS_DELAY 4

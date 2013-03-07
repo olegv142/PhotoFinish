@@ -70,9 +70,11 @@ static void setup_channel()
 		reset();
 }
 
-static int wait_start_worker(struct rf_buff* ctx)
+static int wait_start_worker()
 {
-	// Run photosensor
+	unsigned ts = g_wc.ticks;
+
+	// Run photo-detection
 	phs_run(&g_phs);
 
 	if (g_state == st_calibrating)
@@ -93,7 +95,7 @@ static int wait_start_worker(struct rf_buff* ctx)
 		if (g_phs.overload)
 			display_msg_("---", 1, 3);
 		else if (g_phs.ready)
-			display_hex_(aver_value(&g_phs.asignal[1]), 1, 3);
+			display_hex_(aver_value(&g_phs.asignal[1]) >> g_phs.burst_bits, 1, 3);
 		else
 			display_clr_(1, 3);
 	}
@@ -102,8 +104,9 @@ static int wait_start_worker(struct rf_buff* ctx)
 	// to avoid interference via power consumption of the LEDs
 	display_refresh();
 
-	// Sleep till next clock tick
-	__low_power_mode_2();
+	if (ts == g_wc.ticks)
+		// Sleep till next clock tick
+		__low_power_mode_2();
 
 	return 0;
 }
@@ -111,8 +114,8 @@ static int wait_start_worker(struct rf_buff* ctx)
 static void wait_start()
 {
 	for (;;) {
-		// Wait setup message
-		int r = rfb_receive_msg_(&g_rf, pkt_start, wait_start_worker);
+		// Wait start message
+		int r = rfb_receive_valid_msg_(&g_rf, pkt_start, wait_start_worker);
 		if (!(r & (err_proto|err_session)))
 		{
 			wc_reset(&g_wc);
@@ -128,10 +131,12 @@ static void detect_finish()
 {
 	for (;;)
 	{
+		unsigned ts = g_wc.ticks;
+
 		if (g_timeout)
 			return;
 
-		// Run photosensor
+		// Run photo-detection
 		phs_run(&g_phs);
 
 		if (g_phs.detected)
@@ -141,12 +146,13 @@ static void detect_finish()
 		// to avoid interference via power consumption of the LEDs
 		display_refresh();
 
-		// Sleep till next clock tick
-		__low_power_mode_2();
+		if (ts == g_wc.ticks)
+			// Sleep till next clock tick
+			__low_power_mode_2();
 	}
 }
 
-static void display_refresh_worker(struct rf_buff* ctx)
+static void display_refresh_worker(void)
 {
 	display_refresh();
 	// Sleep till next clock tick
@@ -155,6 +161,8 @@ static void display_refresh_worker(struct rf_buff* ctx)
 
 static void report_finish()
 {
+	int i;
+
 	P1OUT |= BEEP_BIT;
 
 	if (g_timeout) {
@@ -164,7 +172,10 @@ static void report_finish()
 	} else
 		g_rf.tx.finish.time = wc_get_time(&g_wc);
 
-	rfb_send_msg_(&g_rf, pkt_finish, display_refresh_worker);
+	for (i = REPEAT_MSGS; i; --i) {
+		rfb_send_msg_(&g_rf, pkt_finish, display_refresh_worker);
+		wc_delay_(&g_wc, REPEAT_MSGS_DELAY, display_refresh_worker);
+	}
 
 	P1OUT &= ~BEEP_BIT;
 }

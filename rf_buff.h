@@ -16,8 +16,8 @@ struct rf_buff {
  * call idle callback passed as the last parameter to support background activities.
  */
 
-void rfb_send_msg_(struct rf_buff* rf, unsigned char type, void (*cb)(struct rf_buff*));
-int rfb_receive_msg_(struct rf_buff* rf, int type, int (*cb)(struct rf_buff*));
+void rfb_send_msg_(struct rf_buff* rf, unsigned char type, void (*cb)(void));
+int rfb_receive_msg_(struct rf_buff* rf, int type, int (*cb)(void));
 int rfb_chk_rx_err(struct rf_buff* rf, int type);
 void rfb_err_msg(int err);
 
@@ -35,6 +35,20 @@ static inline void rfb_send_msg(struct rf_buff* rf, unsigned char type)
 static inline int rfb_receive_msg(struct rf_buff* rf, int type)
 {
 	return rfb_receive_msg_(rf, type, 0);
+}
+
+static inline int rfb_receive_valid_msg_(struct rf_buff* rf, int type, int (*cb)(void))
+{
+	for (;;) {
+		int res = rfb_receive_msg_(rf, type, cb);
+		if (res != err_crc)
+			return res;
+	}
+}
+
+static inline int rfb_receive_valid_msg(struct rf_buff* rf, int type)
+{
+	return rfb_receive_valid_msg_(rf, type, 0);
 }
 
 static inline void rfb_receive_msg_checked(struct rf_buff* rf, int type)

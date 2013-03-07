@@ -2,17 +2,15 @@
 #include "rf_buff.h"
 #include "display.h"
 
-void rfb_send_msg_(struct rf_buff* rf, unsigned char type, void (*cb)(struct rf_buff*))
+void rfb_send_msg_(struct rf_buff* rf, unsigned char type, void (*cb)(void))
 {
 	rf->tx.type = type;
-	if (rf->master)
-		++rf->tx.sn;
-	else
+	if (!rf->master)
 		rf->tx.sn = rf->rx.p.sn;
 	rf_tx((unsigned char*)&rf->tx, sizeof(rf->tx));
 	rf->tx.err = 0;
 	while (!rf_tx_test())
-		if (cb) cb(rf);
+		if (cb) cb();
 }
 
 int rfb_chk_rx_err(struct rf_buff* rf, int type)
@@ -30,12 +28,12 @@ int rfb_chk_rx_err(struct rf_buff* rf, int type)
 	return 0;
 }
 
-int rfb_receive_msg_(struct rf_buff* rf, int type, int (*cb)(struct rf_buff*))
+int rfb_receive_msg_(struct rf_buff* rf, int type, int (*cb)(void))
 {
 	int err;
 	rf_rx_on();
 	while (!rf_rx_test()) {
-		if (cb && 0 > cb(rf)) {
+		if (cb && 0 > cb()) {
 			rf_rx_off();
 			return -1;
 		}

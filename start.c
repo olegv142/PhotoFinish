@@ -14,6 +14,7 @@
 static struct rf_buff g_rf;
 static struct wc_ctx  g_wc;
 static int            g_show_clock;
+static unsigned       g_start_offset;
 
 static unsigned char select_channel(void)
 {
@@ -69,7 +70,7 @@ static void test_channel(unsigned char ch, unsigned char flags)
 	// Wait response message
 	rfb_receive_msg_checked(&g_rf, pkt_setup_resp);
 	// Calculate transmission delay
-	g_rf.tx.start.offset = (g_wc.ticks - ts - SETUP_RESP_DELAY) / 2;
+	g_start_offset = (g_wc.ticks - ts - SETUP_RESP_DELAY) / 2;
 
 	P1OUT &= ~BEEP_BIT;
 
@@ -128,22 +129,32 @@ int main( void )
 
 	for (;;) {
 		int r;
+		unsigned ts;
 		// Wait in low power mode till the start button press
 		if (P1IN & BTN_BIT) {
 			// Sleep till next clock tick
 			__low_power_mode_2();
 			continue;
 		}
+
+		// Reset clock
+		wc_reset(&g_wc);
+		ts = g_wc.ticks;
+
 		// Send start message
 		P1OUT |= BEEP_BIT;
-		rfb_send_msg(&g_rf, pkt_start);
-		wc_reset(&g_wc);
+		++g_rf.tx.sn;
+		for (r = REPEAT_MSGS; r; --r) {
+			g_rf.tx.start.offset = g_start_offset + (g_wc.ticks - ts);
+			rfb_send_msg(&g_rf, pkt_start);
+			wc_delay(&g_wc, REPEAT_MSGS_DELAY);
+		}
 		P1OUT &= ~BEEP_BIT;
 
 		// Wait finish message
 		display_set_dp(1);
 		g_show_clock = 1;
-		r = rfb_receive_msg(&g_rf, pkt_finish);
+		r = rfb_receive_valid_msg(&g_rf, pkt_finish);
 		g_show_clock = 0;
 
 		// Show result

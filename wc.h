@@ -65,9 +65,14 @@ static inline void wc_set_time(struct wc_ctx* wc, unsigned time)
 	unpack4nibbles(time, wc->d);
 }
 
-static inline void wc_delay(struct wc_ctx* wc, unsigned ticks)
+static inline void wc_delay_(struct wc_ctx* wc, unsigned ticks, void (*cb)(void))
 {
 	unsigned expired = wc->ticks + ticks;
 	while (wc->ticks != expired)
-		__no_operation();
+		if (cb) cb();
+}
+
+static inline void wc_delay(struct wc_ctx* wc, unsigned ticks)
+{
+	wc_delay_(wc, ticks, 0);
 }
