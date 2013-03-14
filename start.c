@@ -30,10 +30,10 @@ static unsigned char select_channel(void)
 		display_hex_(ch, 0, 2);
 		rf_set_channel(ch);
 		rf_rx_on();
-		__delay_cycles(100000);
+		__delay_cycles(500000);
 		display_hex_(rf_rssi(), 2, 2);
 		rf_rx_off();
-		for (cnt = 100000; cnt; --cnt) {
+		for (cnt = 500000; cnt; --cnt) {
 			if (!(P1IN & BTN_BIT))
 				goto out;
 		}
@@ -121,7 +121,7 @@ int main( void )
 		if (!test)
 			break;
 
-		wc_delay(&g_wc, 1000);
+		wc_delay(&g_wc, SHORT_DELAY_TICKS);
 
 		// Autoincrement channel
 		do { ++ch; } while (ch == CTL_CHANNEL);
@@ -141,6 +141,10 @@ int main( void )
 		wc_reset(&g_wc);
 		ts = g_wc.ticks;
 
+		// Display clock
+		display_set_dp(1);
+		g_show_clock = 1;
+
 		// Send start message
 		P1OUT |= BEEP_BIT;
 		++g_rf.tx.sn;
@@ -152,12 +156,10 @@ int main( void )
 		P1OUT &= ~BEEP_BIT;
 
 		// Wait finish message
-		display_set_dp(1);
-		g_show_clock = 1;
 		r = rfb_receive_valid_msg(&g_rf, pkt_finish);
-		g_show_clock = 0;
 
 		// Show result
+		g_show_clock = 0;
 		if (r & (err_proto|err_session)) {
 			rfb_err_msg(r);
 		} else if (r & err_timeout) {
@@ -170,9 +172,10 @@ int main( void )
 			if (r & err_crc)
 				display_set_dp_mask(~0);
 		}
+
 		// Short beep on finish
 		P1OUT |= BEEP_BIT;
-		wc_delay(&g_wc, 1000);
+		wc_delay(&g_wc, SHORT_DELAY_TICKS);
 		P1OUT &= ~BEEP_BIT;
 	}
 }

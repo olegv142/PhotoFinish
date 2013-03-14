@@ -1891,9 +1891,6 @@
     <name>$PROJ_DIR$\finish.c</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\photosync.c</name>
-  </file>
-  <file>
     <name>$PROJ_DIR$\RF1A.c</name>
   </file>
   <file>

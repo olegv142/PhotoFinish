@@ -6,8 +6,8 @@
 
 #define WC_DIGITS 4
 
-/* We are expecting 1586.9Hz update rate (26MHz / (32*512)) */
-#define WC_DIV 15869
+/* We are expecting 793.5 Hz update rate (26MHz / (4*8192)) */
+#define WC_DIV 7935
 /* We are measuring time in 1/100 sec units */
 #define WC_DELTA 1000
 

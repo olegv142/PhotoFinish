@@ -11,15 +11,31 @@ static inline void stop_watchdog()
 
 static inline void configure_watchdog()
 {
-	// Interrupt rate ~1587Hz
-	WDTCTL = WDTPW + WDTTMSEL + WDTSSEL__ACLK + WDTCNTCL + WDTIS__512;
+	// Interrupt rate 6.5MHz / 8192 = 793.5 Hz (1.26 msec)
+	WDTCTL = WDTPW + WDTTMSEL + WDTSSEL__ACLK + WDTCNTCL + WDTIS__8192;
 	SFRIE1 |= WDTIE; // Enable WDT interrupt
+}
+
+static inline void configure_timer_38k()
+{
+	TA0CCR0 = 86; // Interrupt twice during the 38kHz frequency period
+	TA0CCTL0 = CCIE;
+	TA0CTL = TASSEL_2 | MC__UP; // SMCLK UP to CCR0
+}
+
+static inline void timer_38k_enable(int en)
+{
+	if (en) {
+		TA0CTL |= TACLR;
+		TA0CCTL0 = CCIE;
+	} else
+		TA0CCTL0 = 0;
 }
 
 static inline void stabilize_clock()
 {
 	// Loop until XT1,XT2 & DCO stabilizes
-	while (SFRIFG1&OFIFG) {	// Test oscillator fault flag
+	while (SFRIFG1 & OFIFG) {	// Test oscillator fault flag
 		P1OUT |= LED_BIT;
 		UCSCTL7 &= ~(XT2OFFG + XT1LFOFFG + XT1HFOFFG + DCOFFG);
 							// Clear XT2,XT1,DCO fault flags
@@ -31,10 +47,9 @@ static inline void stabilize_clock()
 
 static inline void setup_clock()
 {
-	// Setup 13/8=1.625 MHz main/submain clock
-	// 13/16=812.5kHz ACLK
+	// All clocks to 26/4=6.5 MHz
 	UCSCTL6 &= ~XT2OFF;
-	UCSCTL5 = DIVM__16 | DIVS__16 | DIVA__32 | DIVPA__32;
+	UCSCTL5 = DIVM__4 | DIVS__4 | DIVA__4 | DIVPA__4;
 	UCSCTL4 = SELM__XT2CLK | SELS__XT2CLK | SELA__XT2CLK;
 	UCSCTL3 = 0x70; // Disable FLL
 	// Wait clock to settle
@@ -64,8 +79,8 @@ static inline unsigned measure_vcc()
 	unsigned v;
 	REFCTL0 = REFMSTR|REFON|REFVSEL_1; // 2V REF
 	ADC12CTL0 = 0;
-	ADC12CTL0  = ADC12ON|(4 << 8);
-	ADC12CTL1  = ADC12SSEL_1|ADC12SHP; // ACLK
+	ADC12CTL0  = ADC12ON|ADC12SHT0_4;
+	ADC12CTL1  = ADC12SSEL_1|ADC12SHP|ADC12DIV_6; // ACLK/6 ~ 1.1MHz
 	ADC12MCTL0 = ADC12INCH_11|ADC12SREF_1; // VCC/2
 	ADC12CTL0 |= ADC12ENC;
 	__delay_cycles(10000);

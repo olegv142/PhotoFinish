@@ -8,10 +8,8 @@
 #include "utils.h"
 #include "rf_utils.h"
 #include "rf_buff.h"
-#include "photosync.h"
 #include "wc.h"
 
-static struct phs_ctx g_phs;
 static struct rf_buff g_rf;
 static struct wc_ctx  g_wc;
 
@@ -25,6 +23,56 @@ typedef enum {
 
 static state_t g_state;
 static int     g_timeout;
+static int     g_ir_burst;
+static int     g_detected;
+static int     g_beep;
+
+// Timer0 A0 interrupt service routine
+#pragma vector=TIMER0_A0_VECTOR
+__interrupt void TIMER0_A0_ISR(void)
+{
+	if (!g_ir_burst)
+		return;
+	--g_ir_burst;
+	if (g_ir_burst & 1)
+		P1OUT |= IR_BITS;
+	else
+		P1OUT &= ~IR_BITS;
+	if (!g_ir_burst) {
+		/* Last pulse in burst ended */
+		if (P2IN & RX_BIT)
+			g_detected = 1;
+	}
+}
+
+// Watchdog Timer interrupt service routine
+#pragma vector=WDT_VECTOR
+__interrupt void watchdog_timer(void)
+{
+	int r = wc_update(&g_wc);
+	if (r && g_state == st_started) {
+		display_set_dp(1);
+		display_bin(g_wc.d);
+		if (r > WC_DIGITS)
+			g_timeout = 1;
+	}
+	display_refresh();
+	if (g_state == st_calibrating) {
+		if (g_detected) {
+			// Beep and restart detection
+			g_detected = 0;
+			P1OUT |= BEEP_BIT;
+			g_beep = SHORT_DELAY_TICKS;
+		}
+	}
+	if (g_beep && !--g_beep)
+		P1OUT &= ~BEEP_BIT;
+	if (g_state == st_calibrating || g_state == st_started) {
+		timer_38k_enable(1);
+		g_ir_burst = IR_BURST_PULSES * 2;
+	}
+	__low_power_mode_off_on_exit();
+}
 
 // Setup working channel
 static void setup_channel()
@@ -42,7 +90,7 @@ static void setup_channel()
 		// Show error message
 		rfb_err_msg(r);
 		// Reset itself
-		wc_delay(&g_wc, 1000);
+		wc_delay(&g_wc, SHORT_DELAY_TICKS);
 		reset();
 	} else {
 		// Show channel number
@@ -70,52 +118,11 @@ static void setup_channel()
 		reset();
 }
 
-static int wait_start_worker()
-{
-	unsigned ts = g_wc.ticks;
-
-	// Run photo-detection
-	phs_run(&g_phs);
-
-	if (g_state == st_calibrating)
-	{
-		if (g_phs.detected) {
-			// Restart detection
-			phs_set_mode(&g_phs, 1, 1);
-			phs_restart(&g_phs);
-			P1OUT |= BEEP_BIT;
-		} else if (g_phs.ready)
-			P1OUT &= ~BEEP_BIT;
-
-		// Show current range
-		display_set_dp(0);
-		display_hex_(g_phs.sht, 0, 1);
-
-		// Show current signal 
-		if (g_phs.overload)
-			display_msg_("---", 1, 3);
-		else if (g_phs.ready)
-			display_hex_(aver_value(&g_phs.asignal[1]) >> g_phs.burst_bits, 1, 3);
-		else
-			display_clr_(1, 3);
-	}
-
-	// Refresh in sync with detection instead of the interrupt
-	// to avoid interference via power consumption of the LEDs
-	display_refresh();
-
-	if (ts == g_wc.ticks)
-		// Sleep till next clock tick
-		__low_power_mode_2();
-
-	return 0;
-}
-
 static void wait_start()
 {
 	for (;;) {
 		// Wait start message
-		int r = rfb_receive_valid_msg_(&g_rf, pkt_start, wait_start_worker);
+		int r = rfb_receive_valid_msg(&g_rf, pkt_start);
 		if (!(r & (err_proto|err_session)))
 		{
 			wc_reset(&g_wc);
@@ -129,34 +136,20 @@ static void wait_start()
 
 static void detect_finish()
 {
+	P1OUT &= ~BEEP_BIT;
+	g_detected = 0;
+
 	for (;;)
 	{
-		unsigned ts = g_wc.ticks;
-
 		if (g_timeout)
 			return;
 
-		// Run photo-detection
-		phs_run(&g_phs);
-
-		if (g_phs.detected)
+		if (g_detected)
 			return;
 
-		// Refresh in sync with detection instead of the interrupt
-		// to avoid interference via power consumption of the LEDs
-		display_refresh();
-
-		if (ts == g_wc.ticks)
-			// Sleep till next clock tick
-			__low_power_mode_2();
+		// Sleep till next clock tick
+		__low_power_mode_2();
 	}
-}
-
-static void display_refresh_worker(void)
-{
-	display_refresh();
-	// Sleep till next clock tick
-	__low_power_mode_2();
 }
 
 static void report_finish()
@@ -173,8 +166,8 @@ static void report_finish()
 		g_rf.tx.finish.time = wc_get_time(&g_wc);
 
 	for (i = REPEAT_MSGS; i; --i) {
-		rfb_send_msg_(&g_rf, pkt_finish, display_refresh_worker);
-		wc_delay_(&g_wc, REPEAT_MSGS_DELAY, display_refresh_worker);
+		rfb_send_msg(&g_rf, pkt_finish);
+		wc_delay(&g_wc, REPEAT_MSGS_DELAY);
 	}
 
 	P1OUT &= ~BEEP_BIT;
@@ -186,7 +179,11 @@ int main( void )
 	setup_ports();
 	setup_clock();
 	rf_init(sizeof(struct packet));
+	configure_timer_38k();
 	configure_watchdog();
+
+	P2DIR &= ~RX_BIT;
+
 	__enable_interrupt();
 
 	// Show battery voltage on start
@@ -195,36 +192,15 @@ int main( void )
 	// Setup RF channel
 	setup_channel();
 
-	// Init photosensor
-	phs_init(&g_phs);
-	phs_set_mode(&g_phs, 1, 1);
 	g_state = st_calibrating;
 
 	// Start/stop loop
 	for (;;) {
 		wait_start();
-		phs_set_mode(&g_phs, 0, 1);
-		phs_restart(&g_phs);
 		g_state = st_started;
 		detect_finish();
-		phs_set_mode(&g_phs, 1, 0);
 		g_state = st_stopped;
 		report_finish();
 	}
 }
 
-// Watchdog Timer interrupt service routine
-#pragma vector=WDT_VECTOR
-__interrupt void watchdog_timer(void)
-{
-	int r = wc_update(&g_wc);
-	if (r && g_state == st_started) {
-		display_set_dp(1);
-		display_bin(g_wc.d);
-		if (r > WC_DIGITS)
-			g_timeout = 1;
-	}
-	if (g_state == st_setup)
-		display_refresh();
-	__low_power_mode_off_on_exit();
-}
