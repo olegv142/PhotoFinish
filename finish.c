@@ -214,6 +214,8 @@ static void report_finish()
 	} else
 		g_rf.tx.finish.time = wc_get_time(&g_wc);
 
+	display_hex(g_rf.tx.finish.time);
+
 	for (i = REPEAT_MSGS; i; --i) {
 		rfb_send_msg(&g_rf, pkt_finish);
 		wc_delay(&g_wc, REPEAT_MSGS_DELAY);
