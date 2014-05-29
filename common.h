@@ -2,10 +2,12 @@
 
 //#define SILENT
 
-#define LED_BIT  BIT0       // On-board LED (P1)
-#define RX_BIT   BIT0       // IR Receiver  (P2)
-#define IR_BITS (BIT5|BIT6) // IR LEDs      (P1)
-#define BTN_BIT  BIT4       // Start button (P1)
+#define LED_BIT   BIT0       // On-board LED (P1)
+#define RX_BIT    BIT0       // IR Receiver  (P2)
+#define IR_BITS  (BIT5|BIT6) // IR LEDs      (P1)
+#define BTN_BIT   BIT4       // Start button (P1)
+#define CALIB_BTN BIT1       // IR calibration button (P1)
+#define CALIB_LED BIT3       // IR calibration indicator (P1)
 
 #ifndef SILENT
 // Beeper (P1)

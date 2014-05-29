@@ -15,6 +15,7 @@ static struct wc_ctx  g_wc;
 
 // Global state
 typedef enum {
+	st_idle,
 	st_setup,
 	st_calibrating,
 	st_started,
@@ -22,9 +23,12 @@ typedef enum {
 } state_t;
 
 static state_t g_state;
+static state_t g_next_state;
 static int     g_timeout;
 static int     g_ir_burst;
-static int     g_detected;
+static int     g_has_ir;
+static int     g_no_ir;
+static int     g_no_ir_cnt;
 static int     g_beep;
 
 // Timer0 A0 interrupt service routine
@@ -40,16 +44,42 @@ __interrupt void TIMER0_A0_ISR(void)
 		P1OUT &= ~IR_BITS;
 	if (!g_ir_burst) {
 		/* Last pulse in burst ended */
-		if (P2IN & RX_BIT)
-			g_detected = 1;
+		if (P2IN & RX_BIT) {
+			g_no_ir = 1;
+			++g_no_ir_cnt;
+		} else
+			g_has_ir = 1;
 	}
 }
 
-// Watchdog Timer interrupt service routine
+static void set_state_(state_t st)
+{
+	switch (g_state) {
+	case st_calibrating:
+		g_beep = 0;
+		P1OUT &= ~BEEP_BIT;
+		P1OUT &= ~CALIB_LED;
+		break;
+	}
+	switch (st) {
+	case st_calibrating:
+		P1OUT |= CALIB_LED;
+		break;
+	case st_started:
+		g_beep = SHORT_DELAY_TICKS;
+		P1OUT |= BEEP_BIT;
+		break;
+	}
+	g_state = st;
+}
+
 #pragma vector=WDT_VECTOR
 __interrupt void watchdog_timer(void)
 {
-	int r = wc_update(&g_wc);
+	int r;
+	if (g_next_state != g_state)
+		set_state_(g_next_state);
+	r = wc_update(&g_wc);
 	if (r && g_state == st_started) {
 		display_set_dp(1);
 		display_bin(g_wc.d);
@@ -57,12 +87,18 @@ __interrupt void watchdog_timer(void)
 			g_timeout = 1;
 	}
 	display_refresh();
+	if (g_state == st_stopped) {
+		if (!(P1IN & CALIB_BTN))
+			set_state_(g_next_state = st_calibrating);
+	}
 	if (g_state == st_calibrating) {
-		if (g_detected) {
-			// Beep and restart detection
-			g_detected = 0;
+		if (g_no_ir) {
+			g_no_ir = 0;
 			P1OUT |= BEEP_BIT;
-			g_beep = SHORT_DELAY_TICKS;
+		}
+		if (g_has_ir) {
+			g_has_ir = 0;
+			P1OUT &= ~BEEP_BIT;
 		}
 	}
 	if (g_beep && !--g_beep)
@@ -74,12 +110,17 @@ __interrupt void watchdog_timer(void)
 	__low_power_mode_off_on_exit();
 }
 
+static void set_state(state_t st)
+{
+	while (st != g_state) g_next_state = st;
+}
+
 // Setup working channel
 static void setup_channel()
 {
 	int r;
 
-	g_state = st_setup;
+	set_state(st_setup);
 
 	// Select control channel
 	rf_set_channel(CTL_CHANNEL);
@@ -136,20 +177,28 @@ static void wait_start()
 
 static void detect_finish()
 {
-	P1OUT &= ~BEEP_BIT;
-	g_detected = 0;
+	g_no_ir = 0;
 
 	for (;;)
 	{
 		if (g_timeout)
 			return;
 
-		if (g_detected)
+		if (g_no_ir)
 			return;
 
 		// Sleep till next clock tick
 		__low_power_mode_2();
 	}
+}
+
+static void check_ir()
+{
+	int no_ir_cnt = g_no_ir_cnt;
+	set_state(st_calibrating);
+	wc_delay(&g_wc, SHORT_DELAY_TICKS);
+	if (no_ir_cnt == g_no_ir_cnt)
+		set_state(st_stopped);
 }
 
 static void report_finish()
@@ -182,6 +231,9 @@ int main( void )
 	configure_timer_38k();
 	configure_watchdog();
 
+	P1DIR &= ~CALIB_BTN;
+	P1REN |= CALIB_BTN;
+	P1OUT |= CALIB_BTN;
 	P2DIR &= ~RX_BIT;
 
 	__enable_interrupt();
@@ -192,15 +244,16 @@ int main( void )
 	// Setup RF channel
 	setup_channel();
 
-	g_state = st_calibrating;
+	set_state(st_calibrating);
 
 	// Start/stop loop
 	for (;;) {
 		wait_start();
-		g_state = st_started;
+		set_state(st_started);
 		detect_finish();
-		g_state = st_stopped;
+		set_state(st_stopped);
 		report_finish();
+		check_ir();
 	}
 }
 
