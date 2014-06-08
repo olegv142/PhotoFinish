@@ -10,10 +10,12 @@
 
 // Packet types
 enum {
-	pkt_setup,
+	pkt_setup = 1,
 	pkt_setup_resp,
 	pkt_start,
 	pkt_finish,
+	pkt_status = 0x40,
+	pkt_reset  = 0x80,
 };
 
 // Error flags
@@ -23,6 +25,11 @@ enum {
 	err_crc     = 0x8,
 	err_timeout = 0x40,
 	err_remote  = 0x80,
+};
+
+// Status flags
+enum {
+	sta_no_ir = 0x1,
 };
 
 struct link_info {
@@ -66,6 +73,11 @@ struct packet {
 		struct {
 			unsigned time; // The time in 1/100 sec (BCD code).
 		} finish;
+		// pkt_status
+		// Sent from finish to start to alert operator
+		struct {
+			unsigned flags;
+		} status;
 		// Other packets don't have data
 	};
 };

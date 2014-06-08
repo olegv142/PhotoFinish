@@ -61,10 +61,15 @@ static inline unsigned char rf_get_state(void)
 	return (Strobe(RF_SNOP) >> 4) & 7;
 }
 
+static inline void rf_wait_idle(void)
+{
+	while (rf_get_state()) __no_operation();
+}
+
 static inline void rf_off(void)
 {
 	Strobe(RF_SIDLE);
-	while (rf_get_state()) __no_operation();
+	rf_wait_idle();
 }
 
 static inline void rf_set_channel(unsigned char ch)
@@ -120,4 +125,5 @@ static inline void rf_rx_off(void)
 	// such that the RXFIFO is empty prior to receiving a packet.
 	Strobe(RF_SIDLE);
 	Strobe(RF_SFRX);
+	rf_wait_idle();
 }

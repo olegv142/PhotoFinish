@@ -22,14 +22,14 @@ typedef enum {
 	st_stopped,
 } state_t;
 
-static state_t g_state;
-static state_t g_next_state;
-static int     g_timeout;
-static int     g_ir_burst;
-static int     g_has_ir;
-static int     g_no_ir;
-static int     g_no_ir_cnt;
-static int     g_beep;
+static state_t  g_state;
+static state_t  g_next_state;
+static int      g_timeout;
+static int      g_sec_div;
+static int      g_ir_burst;
+static int      g_no_ir;
+static unsigned g_no_ir_gen;
+static int      g_beep;
 
 // Timer0 A0 interrupt service routine
 #pragma vector=TIMER0_A0_VECTOR
@@ -44,23 +44,16 @@ __interrupt void TIMER0_A0_ISR(void)
 		P1OUT &= ~IR_BITS;
 	if (!g_ir_burst) {
 		/* Last pulse in burst ended */
-		if (P2IN & RX_BIT) {
+		if (P2IN & RX_BIT)
 			g_no_ir = 1;
-			++g_no_ir_cnt;
-		} else
-			g_has_ir = 1;
 	}
 }
 
 static void set_state_(state_t st)
 {
-	switch (g_state) {
-	case st_calibrating:
-		g_beep = 0;
-		P1OUT &= ~BEEP_BIT;
-		P1OUT &= ~CALIB_LED;
-		break;
-	}
+	g_beep = 0;
+	P1OUT &= ~BEEP_BIT;
+	P1OUT &= ~CALIB_LED;
 	switch (st) {
 	case st_calibrating:
 		P1OUT |= CALIB_LED;
@@ -87,25 +80,32 @@ __interrupt void watchdog_timer(void)
 			g_timeout = 1;
 	}
 	display_refresh();
-	if (g_state == st_stopped) {
-		if (!(P1IN & CALIB_BTN))
+	if (!(P1IN & CALIB_SW)) {
+		if (g_state == st_stopped)
 			set_state_(g_next_state = st_calibrating);
+	} else {
+		if (g_state == st_calibrating)
+			set_state_(g_next_state = st_stopped);
 	}
 	if (g_state == st_calibrating) {
-		if (g_no_ir) {
-			g_no_ir = 0;
+		if (g_no_ir)
 			P1OUT |= BEEP_BIT;
-		}
-		if (g_has_ir) {
-			g_has_ir = 0;
+		else
 			P1OUT &= ~BEEP_BIT;
-		}
+	} else if (g_no_ir) {
+		++g_no_ir_gen;
 	}
-	if (g_beep && !--g_beep)
-		P1OUT &= ~BEEP_BIT;
-	if (g_state == st_calibrating || g_state == st_started) {
-		timer_38k_enable(1);
+	g_no_ir = 0;
+	if (g_state == st_calibrating || g_state == st_started || (g_state == st_stopped && !g_sec_div)) {
 		g_ir_burst = IR_BURST_PULSES * 2;
+	}
+	if (g_sec_div) {
+		--g_sec_div;
+	} else {
+		g_sec_div = WD_HZ;
+	}
+	if (g_beep && !--g_beep) {
+		P1OUT &= ~BEEP_BIT;
 	}
 	__low_power_mode_off_on_exit();
 }
@@ -159,11 +159,61 @@ static void setup_channel()
 		reset();
 }
 
+/*
+ * IR barrier health monitoring stuff
+ */
+static unsigned g_no_ir_gen_;
+static unsigned g_no_ir_expire;
+static int      g_no_ir_reported;
+
+static void chk_ir_ctx_init()
+{
+	g_no_ir_gen_   = g_no_ir_gen;
+	g_no_ir_expire = g_wc.ticks + 10 * WD_HZ;
+}
+
+static int chk_ir_cb()
+{
+	if (g_state == st_calibrating) {
+		chk_ir_ctx_init();
+		return 0;
+	}
+	if (g_no_ir_gen_ != g_no_ir_gen) {
+		if (!g_no_ir_reported)
+			return -1;
+		chk_ir_ctx_init();
+	} else {
+		if (g_no_ir_reported && (int)(g_wc.ticks - g_no_ir_expire) > 0)
+			return -1;
+	}
+	return 0;
+}
+
 static void wait_start()
 {
 	for (;;) {
-		// Wait start message
-		int r = rfb_receive_valid_msg(&g_rf, pkt_start);
+		// Wait start message monitoring IR at the same time
+		chk_ir_ctx_init();
+		int r = rfb_receive_valid_msg_(&g_rf, pkt_start, chk_ir_cb);
+		if (r < 0) {
+			// Need to send IR status to start
+			if (!g_no_ir_reported) {
+				display_msg("noIr");
+				g_rf.tx.status.flags = sta_no_ir;
+				rfb_send_msg(&g_rf, pkt_status);
+				g_no_ir_reported = 1;
+			} else {
+				display_msg("Good");
+				g_rf.tx.status.flags = 0;
+				rfb_send_msg(&g_rf, pkt_status);
+				g_no_ir_reported = 0;
+			}
+			continue;
+		}
+		if (r == err_proto && g_rf.rx.p.type == pkt_reset) {
+			// Start wants to reinitialize communication
+			reset();
+		}
 		if (!(r & (err_proto|err_session)))
 		{
 			wc_reset(&g_wc);
@@ -177,28 +227,19 @@ static void wait_start()
 
 static void detect_finish()
 {
-	g_no_ir = 0;
+	unsigned no_ir_gen = g_no_ir_gen;
 
 	for (;;)
 	{
 		if (g_timeout)
 			return;
 
-		if (g_no_ir)
+		if (no_ir_gen != g_no_ir_gen)
 			return;
 
 		// Sleep till next clock tick
 		__low_power_mode_2();
 	}
-}
-
-static void check_ir()
-{
-	int no_ir_cnt = g_no_ir_cnt;
-	set_state(st_calibrating);
-	wc_delay(&g_wc, SHORT_DELAY_TICKS);
-	if (no_ir_cnt == g_no_ir_cnt)
-		set_state(st_stopped);
 }
 
 static void report_finish()
@@ -231,11 +272,12 @@ int main( void )
 	setup_clock();
 	rf_init(sizeof(struct packet));
 	configure_timer_38k();
+	timer_38k_enable(1);
 	configure_watchdog();
 
-	P1DIR &= ~CALIB_BTN;
-	P1REN |= CALIB_BTN;
-	P1OUT |= CALIB_BTN;
+	P1DIR &= ~CALIB_SW;
+	P1REN |= CALIB_SW;
+	P1OUT |= CALIB_SW;
 	P2DIR &= ~RX_BIT;
 
 	__enable_interrupt();
@@ -246,7 +288,7 @@ int main( void )
 	// Setup RF channel
 	setup_channel();
 
-	set_state(st_calibrating);
+	set_state(st_stopped);
 
 	// Start/stop loop
 	for (;;) {
@@ -255,7 +297,6 @@ int main( void )
 		detect_finish();
 		set_state(st_stopped);
 		report_finish();
-		check_ir();
 	}
 }
 

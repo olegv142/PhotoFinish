@@ -43,7 +43,11 @@ out:
 	return ch;
 }
 
-#define TEST_CHANNEL_DELAY 8
+static void reset_channel(unsigned char ch)
+{
+	rf_set_channel(ch);
+	rfb_send_msg(&g_rf, pkt_reset);
+}
 
 static void test_channel(unsigned char ch, unsigned char flags)
 {
@@ -80,9 +84,28 @@ static void test_channel(unsigned char ch, unsigned char flags)
 	display_hex_(g_rf.rx.p.setup_resp.li.rssi, 2, 2);
 }
 
+static int wait_btn_cb()
+{
+	return (P1IN & BTN_BIT) ? 0 : -1;
+}
+
+typedef enum {
+	mode_normal,
+	/* Resume mode is to reconnect to finish which is already listening on the particular channel.
+	 * The start just send reset packet to the finish and then follows standard startup routine.
+	 */
+	mode_resume,
+	/* In test mode the start iteratively choosing successive channels and sending setup packets.
+	 * The finish is just reset itself after responding to the setup packet.
+	 */
+	mode_test,
+} start_mode_t;
+
+#define MODE_SELECT_DELAY (3*SHORT_DELAY_TICKS)
+
 int main( void )
 {
-	int test = 0;
+	start_mode_t mode = mode_normal;
 	unsigned char ch = 0;
 
 	stop_watchdog();
@@ -92,33 +115,44 @@ int main( void )
 	configure_watchdog();
 	__enable_interrupt();
 
-	/*
-	 * Powering on with start button pressed activates test mode.
-	 * In test mode the start iteratively choosing successive channels and sending setup packets.
-	 * The finish is just reset itself after responding to the setup packet.
-	 */
-	test = !(P1IN & BTN_BIT);
-	if (!test)
-		// Show battery voltage on start
-		display_vcc();
-	else
+	// Show battery voltage on start
+	display_vcc();
+
+	while (!(P1IN & BTN_BIT)) {
+		/*
+		 * Powering on with start button pressed activates mode selection.
+		 */
+		if (!wait_btn_release_tout(&g_wc, MODE_SELECT_DELAY))
+			break;
+		mode = mode_resume;
+		display_msg("reSu");
+		if (!wait_btn_release_tout(&g_wc, MODE_SELECT_DELAY))
+			break;
+		mode = mode_test;
 		display_msg("teSt");
+		break;
+	}
 
 	// Wait button press to start channels scan
 	wait_btn();
 
 	for (;;) {
-		if (!test)
-			// Allow user to selet channel
+		if (mode != mode_test)
+			// Allow user to select channel
 			ch = select_channel();
-	
+
 		// Set current clock as sesson id
 		rfb_init_master(&g_rf, g_wc.ticks);
 
-		// Test selected channel
-		test_channel(ch, test ? SETUP_F_TEST : 0);
+		if (mode == mode_resume) {
+			reset_channel(ch);
+			wc_delay(&g_wc, SHORT_DELAY_TICKS);
+		}
 
-		if (!test)
+		// Test selected channel
+		test_channel(ch, mode == mode_test ? SETUP_F_TEST : 0);
+
+		if (mode != mode_test)
 			break;
 
 		wc_delay(&g_wc, SHORT_DELAY_TICKS);
@@ -130,13 +164,26 @@ int main( void )
 	for (;;) {
 		int r;
 		unsigned ts;
-		// Wait in low power mode till the start button press
-		if (P1IN & BTN_BIT) {
-			// Sleep till next clock tick
-			__low_power_mode_2();
+		// Wait status message or the start button press
+		if (!(r = rfb_receive_valid_msg_(&g_rf, pkt_status, wait_btn_cb)))
+		{
+			// Status message received
+			if (g_rf.rx.p.status.flags & sta_no_ir) {
+				display_msg("noIr");
+				P1OUT |= BEEP_BIT;
+				wc_delay(&g_wc, SHORT_DELAY_TICKS);
+				P1OUT &= ~BEEP_BIT;
+			} else
+				display_msg("Good");
 			continue;
 		}
-
+		else if (r > 0) {
+			rfb_err_msg(r);
+			continue;
+		}
+		/*
+		 * Start button pressed
+		 */
 		// Reset clock
 		wc_reset(&g_wc);
 		ts = g_wc.ticks;

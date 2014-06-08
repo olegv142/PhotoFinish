@@ -1896,6 +1896,9 @@
   <file>
     <name>$PROJ_DIR$\rf_buff.c</name>
   </file>
+  <file>
+    <name>$PROJ_DIR$\utils.c</name>
+  </file>
 </project>
 
 

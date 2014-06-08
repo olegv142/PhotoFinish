@@ -8,6 +8,7 @@
 #define BTN_BIT   BIT4       // Start button (P1)
 #define CALIB_BTN BIT1       // IR calibration button (P1)
 #define CALIB_LED BIT3       // IR calibration indicator (P1)
+#define CALIB_SW  BIT4       // IR calibration switch (P1)
 
 #ifndef SILENT
 // Beeper (P1)
@@ -22,3 +23,6 @@
 #define REPEAT_MSGS_DELAY 4
 
 #define SHORT_DELAY_TICKS 500
+
+/* We are expecting 793.5 Hz watchdog interrupt rate (26MHz / (4*8192)) */
+#define WD_HZ  793

@@ -34,8 +34,8 @@ unsigned char Strobe(unsigned char strobe)
         else  	
         {
           while ((RF1AIN&0x04)== 0x04);     // chip-ready ?
-          // Delay for ~810usec at 1.05MHz CPU clock, see erratum RF1A7
-          __delay_cycles(850);	            
+          // Delay for ~810usec, see erratum RF1A7
+          __delay_cycles(5300);	// 6.5MHz clock            
         }
       }
       WriteSingleReg(IOCFG2, gdo_state);    // restore IOCFG2 setting
