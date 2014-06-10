@@ -9,6 +9,7 @@
 #include "rf_utils.h"
 #include "rf_buff.h"
 #include "packet.h"
+#include "nvram.h"
 #include "wc.h"
 
 static struct rf_buff g_rf;
@@ -16,23 +17,28 @@ static struct wc_ctx  g_wc;
 static int            g_show_clock;
 static unsigned       g_start_offset;
 
-static unsigned char select_channel(void)
+static void show_channel_info(unsigned char ch)
+{
+	display_clr_(2, 2);
+	display_hex_(ch, 0, 2);
+	rf_set_channel(ch);
+	rf_rx_on();
+	__delay_cycles(500000);
+	display_hex_(rf_rssi(), 2, 2);
+	rf_rx_off();
+}
+
+static unsigned char select_channel(unsigned char start_ch)
 {
 	unsigned char ch;
 	// Channels scan loop
 	display_set_dp(1);
-	for (ch = 0;; ++ch) {
+	for (ch = start_ch;; ++ch) {
 		unsigned long cnt;
 		if (ch == CTL_CHANNEL)
 			// Skip control channel
 			continue;
-		display_clr_(2, 2);
-		display_hex_(ch, 0, 2);
-		rf_set_channel(ch);
-		rf_rx_on();
-		__delay_cycles(500000);
-		display_hex_(rf_rssi(), 2, 2);
-		rf_rx_off();
+		show_channel_info(ch);
 		for (cnt = 500000; cnt; --cnt) {
 			if (!(P1IN & BTN_BIT))
 				goto out;
@@ -103,10 +109,25 @@ typedef enum {
 
 #define MODE_SELECT_DELAY (3*SHORT_DELAY_TICKS)
 
+struct stored_channel {
+	unsigned char ch;
+	unsigned char se;
+};
+
+static inline void save_channel(unsigned char ch, unsigned char se)
+{
+	struct stored_channel sch;
+	sch.ch = ch;
+	sch.se = se;
+	// Remember channel and session id
+	nv_put(&sch, sizeof(sch));
+}
+
 int main( void )
 {
 	start_mode_t mode = mode_normal;
-	unsigned char ch = 0;
+	struct stored_channel const* sch;
+	unsigned char ch, se;
 
 	stop_watchdog();
 	setup_ports();
@@ -130,19 +151,39 @@ int main( void )
 			break;
 		mode = mode_test;
 		display_msg("teSt");
+		wait_btn_release();
 		break;
 	}
 
-	// Wait button press to start channels scan
-	wait_btn();
+	if (mode == mode_normal)
+		// Wait button press to start channels scan
+		wait_btn();
+
+	// Use current clock as sesson id
+	se = g_wc.ticks;
+	// Query stored channel info
+	sch = nv_get(sizeof(*sch));
+	switch (mode) {
+	case mode_resume:
+		if (sch) {
+			// Use stored channel info
+			ch = sch->ch;
+			se = sch->se;
+			show_channel_info(ch);
+			break;
+		}
+	case mode_normal:
+		// Allow user to select channel
+		ch = select_channel(sch ? sch->ch : 0);
+		save_channel(ch, se);
+		break;
+	case mode_test:
+		ch = 0;
+		break;
+	}
 
 	for (;;) {
-		if (mode != mode_test)
-			// Allow user to select channel
-			ch = select_channel();
-
-		// Set current clock as sesson id
-		rfb_init_master(&g_rf, g_wc.ticks);
+		rfb_init_master(&g_rf, se);
 
 		if (mode == mode_resume) {
 			reset_channel(ch);
@@ -156,6 +197,7 @@ int main( void )
 			break;
 
 		wc_delay(&g_wc, SHORT_DELAY_TICKS);
+		se = g_wc.ticks;
 
 		// Autoincrement channel
 		do { ++ch; } while (ch == CTL_CHANNEL);

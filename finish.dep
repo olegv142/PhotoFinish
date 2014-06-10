@@ -14,50 +14,49 @@
       <file>$PROJ_DIR$\photosync.c</file>
       <file>$PROJ_DIR$\Debug\Obj\main.r43</file>
       <file>$PROJ_DIR$\main.c</file>
-      <file>$PROJ_DIR$\Debug\Exe\finish.d43</file>
-      <file>$TOOLKIT_DIR$\config\multiplier32_loc2.xcl</file>
-      <file>$TOOLKIT_DIR$\inc\intrinsics.h</file>
-      <file>$PROJ_DIR$\Debug\Obj\main.pbi</file>
       <file>$PROJ_DIR$\Debug\Obj\finish.pbd</file>
+      <file>$TOOLKIT_DIR$\config\multiplier32_loc2.xcl</file>
+      <file>$PROJ_DIR$\Debug\Obj\main.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\intrinsics.h</file>
+      <file>$PROJ_DIR$\Debug\Exe\finish.d43</file>
       <file>$TOOLKIT_DIR$\inc\io430.h</file>
       <file>$PROJ_DIR$\Debug\Obj\finish.r43</file>
       <file>$TOOLKIT_DIR$\inc\iocc430x513x.h</file>
       <file>$PROJ_DIR$\Debug\Obj\finish.pbi</file>
       <file>$PROJ_DIR$\Debug\Obj\display.r43</file>
-      <file>$TOOLKIT_DIR$\config\lnkCC430F5137.xcl</file>
-      <file>$PROJ_DIR$\Debug\Obj\display.pbi</file>
       <file>$PROJ_DIR$\common.h</file>
-      <file>$PROJ_DIR$\display.h</file>
+      <file>$PROJ_DIR$\Debug\Obj\display.pbi</file>
       <file>$PROJ_DIR$\wc.h</file>
-      <file>$PROJ_DIR$\utils.h</file>
+      <file>$PROJ_DIR$\display.h</file>
       <file>$PROJ_DIR$\Debug\Obj\photosync.pbi</file>
-      <file>$PROJ_DIR$\aver.h</file>
+      <file>$PROJ_DIR$\utils.h</file>
       <file>$PROJ_DIR$\Debug\Obj\photosync.r43</file>
-      <file>$PROJ_DIR$\photosync.h</file>
+      <file>$PROJ_DIR$\aver.h</file>
       <file>$PROJ_DIR$\Debug\Obj\RF1A.pbi</file>
-      <file>$PROJ_DIR$\Debug\Obj\RF1A.r43</file>
+      <file>$PROJ_DIR$\photosync.h</file>
       <file>$TOOLKIT_DIR$\inc\cc430x513x.h</file>
-      <file>$PROJ_DIR$\RF1A.h</file>
+      <file>$PROJ_DIR$\Debug\Obj\RF1A.r43</file>
       <file>$PROJ_DIR$\rf_utils.h</file>
-      <file>$TOOLKIT_DIR$\inc\in430.h</file>
+      <file>$PROJ_DIR$\RF1A.h</file>
       <file>$PROJ_DIR$\smartrf_CC1101.h</file>
-      <file>$PROJ_DIR$\Debug\Obj\rf_buff.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\in430.h</file>
       <file>$PROJ_DIR$\Debug\Obj\utils.r43</file>
+      <file>$PROJ_DIR$\Debug\Obj\rf_buff.pbi</file>
       <file>$PROJ_DIR$\rf_buff.h</file>
       <file>$PROJ_DIR$\packet.h</file>
-      <file>$PROJ_DIR$\Debug\List\finish.map</file>
       <file>$PROJ_DIR$\Debug\Obj\rf_buff.r43</file>
-      <file>$PROJ_DIR$\debug.h</file>
+      <file>$PROJ_DIR$\Debug\List\finish.map</file>
       <file>$PROJ_DIR$\Debug\Obj\utils.pbi</file>
+      <file>$PROJ_DIR$\debug.h</file>
+      <file>$TOOLKIT_DIR$\config\lnkCC430F5137.xcl</file>
       <file>$TOOLKIT_DIR$\lib\dlib\dl430xsfn.r43</file>
-      <file>$PROJ_DIR$\start.c</file>
     </outputs>
     <file>
       <name>[ROOT_NODE]</name>
       <outputs>
         <tool>
           <name>XLINK</name>
-          <file> 8 39</file>
+          <file> 12 39</file>
         </tool>
       </outputs>
     </file>
@@ -76,11 +75,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 13 15 10 20 21 23 32 34 31 37 38 41 22</file>
+          <file> 13 15 11 18 21 23 30 32 31 36 37 41 20</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 13 15 10 20 21 23 32 34 31 37 38 41 22</file>
+          <file> 13 15 11 18 21 23 30 32 31 36 37 41 20</file>
         </tool>
       </inputs>
     </file>
@@ -99,11 +98,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 13 15 10 21 23 20</file>
+          <file> 13 15 11 21 23 18</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 13 15 10 21 23 20</file>
+          <file> 13 15 11 21 23 18</file>
         </tool>
       </inputs>
     </file>
@@ -116,17 +115,17 @@
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 28</file>
+          <file> 26</file>
         </tool>
       </outputs>
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 31 30 33 10</file>
+          <file> 31 28 33 11</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 31 30 33 10</file>
+          <file> 31 28 33 11</file>
         </tool>
       </inputs>
     </file>
@@ -135,7 +134,7 @@
       <outputs>
         <tool>
           <name>ICC430</name>
-          <file> 40</file>
+          <file> 38</file>
         </tool>
         <tool>
           <name>BICOMP</name>
@@ -145,11 +144,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 13 15 10 37 38 41 32 34 31 23 20 21</file>
+          <file> 13 15 11 36 37 41 30 32 31 23 18 21</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 13 15 10 37 38 41 32 34 31 23 20 21</file>
+          <file> 13 15 11 36 37 41 30 32 31 23 18 21</file>
         </tool>
       </inputs>
     </file>
@@ -158,21 +157,21 @@
       <outputs>
         <tool>
           <name>ICC430</name>
-          <file> 36</file>
+          <file> 34</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 42</file>
+          <file> 40</file>
         </tool>
       </outputs>
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 23 13 15 10 20 22</file>
+          <file> 23 13 15 11 18 20</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 23 13 15 10 20 22</file>
+          <file> 23 13 15 11 18 20</file>
         </tool>
       </inputs>
     </file>
@@ -181,21 +180,21 @@
       <outputs>
         <tool>
           <name>ICC430</name>
-          <file> 26</file>
+          <file> 24</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 24</file>
+          <file> 22</file>
         </tool>
       </outputs>
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 13 15 10 20 27 25</file>
+          <file> 13 15 11 18 27 25</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 13 15 10 20 27 25</file>
+          <file> 13 15 11 18 27 25</file>
         </tool>
       </inputs>
     </file>
@@ -208,13 +207,22 @@
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 11</file>
+          <file> 10</file>
         </tool>
       </outputs>
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 13 15 10</file>
+          <file> 13 15 11</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\Debug\Obj\finish.pbd</name>
+      <inputs>
+        <tool>
+          <name>BILINK</name>
+          <file> 26 19 16 35 40</file>
         </tool>
       </inputs>
     </file>
@@ -229,16 +237,7 @@
       <inputs>
         <tool>
           <name>XLINK</name>
-          <file> 18 9 29 17 14 40 36 43</file>
-        </tool>
-      </inputs>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\Debug\Obj\finish.pbd</name>
-      <inputs>
-        <tool>
-          <name>BILINK</name>
-          <file> 28 19 16 35 42</file>
+          <file> 42 9 29 17 14 38 34 43</file>
         </tool>
       </inputs>
     </file>
@@ -254,20 +253,20 @@
       <file>$TOOLKIT_DIR$\inc\intrinsics.h</file>
       <file>$TOOLKIT_DIR$\inc\io430.h</file>
       <file>$PROJ_DIR$\common.h</file>
-      <file>$PROJ_DIR$\display.h</file>
       <file>$PROJ_DIR$\wc.h</file>
+      <file>$PROJ_DIR$\display.h</file>
       <file>$PROJ_DIR$\utils.h</file>
       <file>$PROJ_DIR$\aver.h</file>
       <file>$PROJ_DIR$\photosync.h</file>
       <file>$TOOLKIT_DIR$\inc\cc430x513x.h</file>
-      <file>$PROJ_DIR$\RF1A.h</file>
       <file>$PROJ_DIR$\rf_utils.h</file>
-      <file>$TOOLKIT_DIR$\inc\in430.h</file>
+      <file>$PROJ_DIR$\RF1A.h</file>
       <file>$PROJ_DIR$\smartrf_CC1101.h</file>
+      <file>$TOOLKIT_DIR$\inc\in430.h</file>
       <file>$PROJ_DIR$\rf_buff.h</file>
       <file>$PROJ_DIR$\packet.h</file>
-      <file>$PROJ_DIR$\Release\Exe\finish.txt</file>
       <file>$TOOLKIT_DIR$\inc\io430x14x.h</file>
+      <file>$PROJ_DIR$\Release\Exe\finish.txt</file>
       <file>$PROJ_DIR$\Release\Obj\finish.pbd</file>
       <file>$PROJ_DIR$\Release\Obj\rf_buff.pbi</file>
       <file>$PROJ_DIR$\Release\Obj\RF1A.pbi</file>
@@ -281,7 +280,7 @@
       <outputs>
         <tool>
           <name>XLINK</name>
-          <file> 20</file>
+          <file> 21</file>
         </tool>
       </outputs>
     </file>
@@ -296,11 +295,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 6 21 5 7 8 10 15 17 14 18 19 12 11</file>
+          <file> 6 20 5 7 9 10 14 16 15 18 19 12 11</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 6 21 5 7 8 10 15 17 14 18 19 12 11 9</file>
+          <file> 6 20 5 7 9 10 14 16 15 18 19 12 11 8</file>
         </tool>
       </inputs>
     </file>
@@ -315,11 +314,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 6 21 5 8 10 7</file>
+          <file> 6 20 5 9 10 7</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 6 21 5 8 10 7</file>
+          <file> 6 20 5 9 10 7</file>
         </tool>
       </inputs>
     </file>
@@ -338,11 +337,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 14 13 16 5</file>
+          <file> 15 13 17 5</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 14 13 16 5</file>
+          <file> 15 13 17 5</file>
         </tool>
       </inputs>
     </file>
@@ -357,11 +356,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 6 21 5 18 19 15 17 14 10 7 8</file>
+          <file> 6 20 5 18 19 14 16 15 10 7 9</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 6 21 5 18 19 15 17 14 10 7 8</file>
+          <file> 6 20 5 18 19 14 16 15 10 7 9</file>
         </tool>
       </inputs>
     </file>
@@ -376,11 +375,11 @@
       <inputs>
         <tool>
           <name>ICC430</name>
-          <file> 6 21 5 7 12 11</file>
+          <file> 6 20 5 7 12 11</file>
         </tool>
         <tool>
           <name>BICOMP</name>
-          <file> 6 21 5 7 12 11</file>
+          <file> 6 20 5 7 12 11</file>
         </tool>
       </inputs>
     </file>

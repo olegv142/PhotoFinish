@@ -17,24 +17,43 @@ static struct wc_ctx  g_wc;
 typedef enum {
 	st_idle,
 	st_setup,
-	st_calibrating,
 	st_started,
 	st_stopped,
 } state_t;
 
 static state_t  g_state;
-static state_t  g_next_state;
 static int      g_timeout;
-static int      g_sec_div;
+static int      g_ir_timer;
 static int      g_ir_burst;
 static int      g_no_ir;
 static unsigned g_no_ir_gen;
 static int      g_beep;
 
+static int is_calibrating(void)
+{
+	return !(P1IN & CALIB_SW);
+}
+
+static inline void beep(int duration)
+{
+	g_beep = duration;
+}
+
+static inline void beep_on(void)
+{
+	g_beep = -1;
+}
+
+static inline void beep_off(void)
+{
+	g_beep = 0;
+}
+
 // Timer0 A0 interrupt service routine
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void)
 {
+	// IR burst generation
 	if (!g_ir_burst)
 		return;
 	--g_ir_burst;
@@ -49,30 +68,28 @@ __interrupt void TIMER0_A0_ISR(void)
 	}
 }
 
-static void set_state_(state_t st)
+static void set_state(state_t st)
 {
-	g_beep = 0;
-	P1OUT &= ~BEEP_BIT;
-	P1OUT &= ~CALIB_LED;
-	switch (st) {
-	case st_calibrating:
-		P1OUT |= CALIB_LED;
-		break;
-	case st_started:
-		g_beep = SHORT_DELAY_TICKS;
-		P1OUT |= BEEP_BIT;
-		break;
-	}
 	g_state = st;
+}
+
+static int ir_divider()
+{
+	if (g_state == st_idle)
+		return 0;
+	if (g_state == st_started)
+		return 1;
+	if (g_state == st_setup || is_calibrating())
+		return 10;
+	return WD_HZ;
 }
 
 #pragma vector=WDT_VECTOR
 __interrupt void watchdog_timer(void)
 {
-	int r;
-	if (g_next_state != g_state)
-		set_state_(g_next_state);
-	r = wc_update(&g_wc);
+	// Routine maintenance tasks
+	int ir_div = ir_divider();
+	int r = wc_update(&g_wc);
 	if (r && g_state == st_started) {
 		display_set_dp(1);
 		display_bin(g_wc.d);
@@ -80,39 +97,31 @@ __interrupt void watchdog_timer(void)
 			g_timeout = 1;
 	}
 	display_refresh();
-	if (!(P1IN & CALIB_SW)) {
-		if (g_state == st_stopped)
-			set_state_(g_next_state = st_calibrating);
+	if (is_calibrating()) {
+		P1OUT |= CALIB_LED;
 	} else {
-		if (g_state == st_calibrating)
-			set_state_(g_next_state = st_stopped);
+		P1OUT &= ~CALIB_LED;
 	}
-	if (g_state == st_calibrating) {
-		if (g_no_ir)
-			P1OUT |= BEEP_BIT;
-		else
-			P1OUT &= ~BEEP_BIT;
-	} else if (g_no_ir) {
+	if (g_no_ir) {
+		g_no_ir = 0;
 		++g_no_ir_gen;
+		if (is_calibrating())
+			beep(ir_div * 2);
 	}
-	g_no_ir = 0;
-	if (g_state == st_calibrating || g_state == st_started || (g_state == st_stopped && !g_sec_div)) {
-		g_ir_burst = IR_BURST_PULSES * 2;
-	}
-	if (g_sec_div) {
-		--g_sec_div;
+	if (g_beep) {
+		if (g_beep > 0)
+			--g_beep;
+		P1OUT |= BEEP_BIT;
 	} else {
-		g_sec_div = WD_HZ;
-	}
-	if (g_beep && !--g_beep) {
 		P1OUT &= ~BEEP_BIT;
 	}
+	if (ir_div) {
+		if (++g_ir_timer >= ir_div) {
+			g_ir_timer -= ir_div;
+			g_ir_burst = IR_BURST_PULSES * 2;
+		}
+	}
 	__low_power_mode_off_on_exit();
-}
-
-static void set_state(state_t st)
-{
-	while (st != g_state) g_next_state = st;
 }
 
 // Setup working channel
@@ -174,10 +183,6 @@ static void chk_ir_ctx_init()
 
 static int chk_ir_cb()
 {
-	if (g_state == st_calibrating) {
-		chk_ir_ctx_init();
-		return 0;
-	}
 	if (g_no_ir_gen_ != g_no_ir_gen) {
 		if (!g_no_ir_reported)
 			return -1;
@@ -194,7 +199,7 @@ static void wait_start()
 	for (;;) {
 		// Wait start message monitoring IR at the same time
 		chk_ir_ctx_init();
-		int r = rfb_receive_valid_msg_(&g_rf, pkt_start, chk_ir_cb);
+		int r = rfb_receive_valid_msg_(&g_rf, -1, chk_ir_cb);
 		if (r < 0) {
 			// Need to send IR status to start
 			if (!g_no_ir_reported) {
@@ -210,18 +215,19 @@ static void wait_start()
 			}
 			continue;
 		}
-		if (r == err_proto && g_rf.rx.p.type == pkt_reset) {
+		if (r) {
+			continue;
+		}
+		switch (g_rf.rx.p.type) {
+		case pkt_start:
+			g_timeout = 0;
+			wc_reset(&g_wc);
+			wc_advance(&g_wc, g_rf.rx.p.start.offset);
+			return;
+		case pkt_reset:
 			// Start wants to reinitialize communication
 			reset();
-		}
-		if (!(r & (err_proto|err_session)))
-		{
-			wc_reset(&g_wc);
-			g_timeout = 0;
-			if (!r)
-				wc_advance(&g_wc, g_rf.rx.p.start.offset);
-			return;
-		}
+		}		
 	}
 }
 
@@ -246,7 +252,7 @@ static void report_finish()
 {
 	int i;
 
-	P1OUT |= BEEP_BIT;
+	beep_on();
 
 	if (g_timeout) {
 		display_msg("----");
@@ -262,7 +268,7 @@ static void report_finish()
 		wc_delay(&g_wc, REPEAT_MSGS_DELAY);
 	}
 
-	P1OUT &= ~BEEP_BIT;
+	beep_off();
 }
 
 int main( void )
@@ -294,6 +300,7 @@ int main( void )
 	for (;;) {
 		wait_start();
 		set_state(st_started);
+		beep(SHORT_DELAY_TICKS);
 		detect_finish();
 		set_state(st_stopped);
 		report_finish();
