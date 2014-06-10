@@ -149,7 +149,7 @@ static void setup_channel()
 		display_hex_(g_rf.rx.p.setup.chan, 2, 2);
 	}
 
-	P1OUT |= BEEP_BIT;
+	beep_on();
 
 	// Set working channel
 	rf_set_channel(g_rf.rx.p.setup.chan);
@@ -161,7 +161,7 @@ static void setup_channel()
 	g_rf.tx.setup_resp.li = g_rf.rx.li;
 	rfb_send_msg(&g_rf, pkt_setup_resp);
 
-	P1OUT &= ~BEEP_BIT;
+	beep_off();
 
 	// Reset itself on error or in test mode
 	if (r || (g_rf.rx.p.setup.flags & SETUP_F_TEST))
