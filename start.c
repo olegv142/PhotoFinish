@@ -12,6 +12,9 @@
 #include "nvram.h"
 #include "wc.h"
 
+// Uncomment to show signal strength indicator
+//#define SHOW_RSSI
+
 static struct rf_buff g_rf;
 static struct wc_ctx  g_wc;
 static int            g_show_clock;
@@ -19,13 +22,19 @@ static unsigned       g_start_offset;
 
 static void show_channel_info(unsigned char ch)
 {
+	rf_set_channel(ch);
+#ifdef SHOW_RSSI
 	display_clr_(2, 2);
 	display_hex_(ch, 0, 2);
-	rf_set_channel(ch);
 	rf_rx_on();
 	__delay_cycles(500000);
 	display_hex_(rf_rssi(), 2, 2);
 	rf_rx_off();
+#else
+	display_msg("Ch");
+	display_hex_(ch, 2, 2);
+	__delay_cycles(500000);
+#endif
 }
 
 static unsigned char select_channel(unsigned char start_ch)
@@ -83,16 +92,26 @@ static void test_channel(unsigned char ch, unsigned char flags)
 	g_start_offset = (g_wc.ticks - ts - SETUP_RESP_DELAY) / 2;
 
 	P1OUT &= ~BEEP_BIT;
-
+#ifdef SHOW_RSSI
 	// Handshake completed, show signal strength info
 	display_set_dp(1);
 	display_hex_(g_rf.rx.li.rssi, 0, 2);
 	display_hex_(g_rf.rx.p.setup_resp.li.rssi, 2, 2);
+#endif
 }
+
+enum {
+	btn_start = -1,
+	btn_user  = -2,
+};
 
 static int wait_btn_cb()
 {
-	return (P1IN & BTN_BIT) ? 0 : -1;
+	if (!(P1IN & START_BTN_BIT))
+		return btn_start;
+	if (!(P1IN & BTN_BIT))
+		return btn_user;
+	return 0;
 }
 
 typedef enum {
@@ -123,6 +142,60 @@ static inline void save_channel(unsigned char ch, unsigned char se)
 	nv_put(&sch, sizeof(sch));
 }
 
+static void setup_start_ports( void )
+{
+	setup_ports();
+	P1DIR &= ~START_BTN_BIT;
+	P1REN |= START_BTN_BIT;
+	P1OUT |= START_BTN_BIT;
+}
+
+static void do_start( void )
+{
+	int r;
+	unsigned ts;
+	// Reset clock
+	wc_reset(&g_wc);
+	ts = g_wc.ticks;
+
+	// Display clock
+	display_set_dp(1);
+	g_show_clock = 1;
+
+	// Send start message
+	P1OUT |= BEEP_BIT;
+	++g_rf.tx.sn;
+	for (r = REPEAT_MSGS; r; --r) {
+		g_rf.tx.start.offset = g_start_offset + (g_wc.ticks - ts);
+		rfb_send_msg(&g_rf, pkt_start);
+		wc_delay(&g_wc, REPEAT_MSGS_DELAY);
+	}
+	P1OUT &= ~BEEP_BIT;
+
+	// Wait finish message
+	r = rfb_receive_valid_msg(&g_rf, pkt_finish);
+
+	// Show result
+	g_show_clock = 0;
+	if (r & (err_proto|err_session)) {
+		rfb_err_msg(r);
+	} else if (r & err_timeout) {
+		display_msg("----");
+		if (r & err_crc)
+			display_set_dp_mask(~0);
+	} else {
+		// Show reported time
+		display_hex(g_rf.rx.p.finish.time);
+		if (r & err_crc)
+			display_set_dp_mask(~0);
+	}
+
+	// Short beep on finish
+	P1OUT |= BEEP_BIT;
+	wc_delay(&g_wc, SHORT_DELAY_TICKS);
+	P1OUT &= ~BEEP_BIT;
+}
+
 int main( void )
 {
 	start_mode_t mode = mode_normal;
@@ -130,7 +203,7 @@ int main( void )
 	unsigned char ch, se;
 
 	stop_watchdog();
-	setup_ports();
+	setup_start_ports();
 	setup_clock();
 	rf_init(sizeof(struct packet));
 	configure_watchdog();
@@ -141,7 +214,7 @@ int main( void )
 
 	while (!(P1IN & BTN_BIT)) {
 		/*
-		 * Powering on with start button pressed activates mode selection.
+		 * Powering on with button pressed activates mode selection.
 		 */
 		if (!wait_btn_release_tout(&g_wc, MODE_SELECT_DELAY))
 			break;
@@ -205,67 +278,51 @@ int main( void )
 
 	for (;;) {
 		int r;
-		unsigned ts;
 		// Wait status message or the start button press
-		if (!(r = rfb_receive_valid_msg_(&g_rf, pkt_status, wait_btn_cb)))
+		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, wait_btn_cb)))
 		{
-			// Status message received
-			if (g_rf.rx.p.status.flags & sta_no_ir) {
-				display_msg("noIr");
-				P1OUT |= BEEP_BIT;
+			switch (g_rf.rx.p.type) {
+			case pkt_status:
+				// Status message received
+				if (g_rf.rx.p.status.flags & sta_no_ir) {
+					display_msg("noIr");
+					P1OUT |= BEEP_BIT;
+					wc_delay(&g_wc, SHORT_DELAY_TICKS);
+					P1OUT &= ~BEEP_BIT;
+				} else
+					display_msg("Good");
+				break;
+			case pkt_ping:
+				// Ping message received
+				display_msg("PIng");
 				wc_delay(&g_wc, SHORT_DELAY_TICKS);
+				rfb_send_msg(&g_rf, pkt_ping);
+				display_clr();
+				break;
+			}
+			continue;
+		}
+		if (r == btn_user) {
+			/* Send ping */
+			P1OUT |= BEEP_BIT;
+			display_msg("PIng");
+			rfb_send_msg(&g_rf, pkt_ping);
+			r = rfb_receive_valid_msg(&g_rf, pkt_ping);
+			if (r) {
+				rfb_err_msg(r);
+			} else {
+				display_hex_(rf_rssi(), 2, 2);
+				display_msg_("--", 0, 2);
 				P1OUT &= ~BEEP_BIT;
-			} else
-				display_msg("Good");
+			}
 			continue;
 		}
-		else if (r > 0) {
-			rfb_err_msg(r);
+		if (r == btn_start) {
+			/* Start button pressed */
+			do_start();
 			continue;
 		}
-		/*
-		 * Start button pressed
-		 */
-		// Reset clock
-		wc_reset(&g_wc);
-		ts = g_wc.ticks;
-
-		// Display clock
-		display_set_dp(1);
-		g_show_clock = 1;
-
-		// Send start message
-		P1OUT |= BEEP_BIT;
-		++g_rf.tx.sn;
-		for (r = REPEAT_MSGS; r; --r) {
-			g_rf.tx.start.offset = g_start_offset + (g_wc.ticks - ts);
-			rfb_send_msg(&g_rf, pkt_start);
-			wc_delay(&g_wc, REPEAT_MSGS_DELAY);
-		}
-		P1OUT &= ~BEEP_BIT;
-
-		// Wait finish message
-		r = rfb_receive_valid_msg(&g_rf, pkt_finish);
-
-		// Show result
-		g_show_clock = 0;
-		if (r & (err_proto|err_session)) {
-			rfb_err_msg(r);
-		} else if (r & err_timeout) {
-			display_msg("----");
-			if (r & err_crc)
-				display_set_dp_mask(~0);
-		} else {
-			// Show reported time
-			display_hex(g_rf.rx.p.finish.time);
-			if (r & err_crc)
-				display_set_dp_mask(~0);
-		}
-
-		// Short beep on finish
-		P1OUT |= BEEP_BIT;
-		wc_delay(&g_wc, SHORT_DELAY_TICKS);
-		P1OUT &= ~BEEP_BIT;
+		rfb_err_msg(r);
 	}
 }
 

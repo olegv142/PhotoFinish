@@ -33,9 +33,9 @@ int rfb_receive_msg_(struct rf_buff* rf, int type, int (*cb)(void))
 	int err;
 	rf_rx_on();
 	while (!rf_rx_test()) {
-		if (cb && 0 > cb()) {
+		if (cb && 0 > (err = cb())) {
 			rf_rx_off();
-			return -1;
+			return err;
 		}
 	}
 	rf_rx_read((unsigned char*)&rf->rx, sizeof(rf->rx));

@@ -181,15 +181,23 @@ static void chk_ir_ctx_init()
 	g_no_ir_expire = g_wc.ticks + 10 * WD_HZ;
 }
 
+enum {
+	ir_event  = -1,
+	btn_event = -2
+};
+
 static int chk_ir_cb()
 {
 	if (g_no_ir_gen_ != g_no_ir_gen) {
 		if (!g_no_ir_reported)
-			return -1;
+			return ir_event;
 		chk_ir_ctx_init();
 	} else {
 		if (g_no_ir_reported && (int)(g_wc.ticks - g_no_ir_expire) > 0)
-			return -1;
+			return ir_event;
+	}
+	if (!(P1IN & PING_BTN)) {
+		return btn_event;
 	}
 	return 0;
 }
@@ -197,10 +205,29 @@ static int chk_ir_cb()
 static void wait_start()
 {
 	for (;;) {
+		int r;
 		// Wait start message monitoring IR at the same time
 		chk_ir_ctx_init();
-		int r = rfb_receive_valid_msg_(&g_rf, -1, chk_ir_cb);
-		if (r < 0) {
+		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, chk_ir_cb))) {
+			switch (g_rf.rx.p.type) {
+			case pkt_start:
+				g_timeout = 0;
+				wc_reset(&g_wc);
+				wc_advance(&g_wc, g_rf.rx.p.start.offset);
+				return;
+			case pkt_ping:
+				display_msg("PIng");
+				wc_delay(&g_wc, SHORT_DELAY_TICKS);
+				rfb_send_msg(&g_rf, pkt_ping);
+				display_clr();
+				break;
+			case pkt_reset:
+				// Start wants to reinitialize communication
+				reset();
+			}
+			continue;
+		}
+		if (r == ir_event) {
 			// Need to send IR status to start
 			if (!g_no_ir_reported) {
 				display_msg("noIr");
@@ -215,19 +242,22 @@ static void wait_start()
 			}
 			continue;
 		}
-		if (r) {
+		if (r == btn_event) {
+			// Send ping to start
+			beep_on();
+			display_msg("PIng");
+			rfb_send_msg(&g_rf, pkt_ping);
+			r = rfb_receive_valid_msg(&g_rf, pkt_ping);
+			if (r) {
+				rfb_err_msg(r);
+			} else {
+				display_hex_(rf_rssi(), 2, 2);
+				display_msg_("--", 0, 2);
+				beep_off();
+			}
 			continue;
 		}
-		switch (g_rf.rx.p.type) {
-		case pkt_start:
-			g_timeout = 0;
-			wc_reset(&g_wc);
-			wc_advance(&g_wc, g_rf.rx.p.start.offset);
-			return;
-		case pkt_reset:
-			// Start wants to reinitialize communication
-			reset();
-		}		
+		rfb_err_msg(r);
 	}
 }
 
@@ -271,20 +301,24 @@ static void report_finish()
 	beep_off();
 }
 
+static void setup_finish_ports( void )
+{
+	setup_ports();
+	P1DIR &= ~PING_BTN;
+	P1REN |= PING_BTN;
+	P1OUT |= PING_BTN;
+	P2DIR &= ~RX_BIT;
+}
+
 int main( void )
 {
 	stop_watchdog();
-	setup_ports();
+	setup_finish_ports();
 	setup_clock();
 	rf_init(sizeof(struct packet));
 	configure_timer_38k();
 	timer_38k_enable(1);
 	configure_watchdog();
-
-	P1DIR &= ~CALIB_SW;
-	P1REN |= CALIB_SW;
-	P1OUT |= CALIB_SW;
-	P2DIR &= ~RX_BIT;
 
 	__enable_interrupt();
 

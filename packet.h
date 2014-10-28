@@ -14,6 +14,7 @@ enum {
 	pkt_setup_resp,
 	pkt_start,
 	pkt_finish,
+	pkt_ping   = 0x20,
 	pkt_status = 0x40,
 	pkt_reset  = 0x80,
 };

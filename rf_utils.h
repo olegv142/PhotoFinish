@@ -78,9 +78,9 @@ static inline void rf_set_channel(unsigned char ch)
 	WriteSingleReg(CHANNR, ch);
 }
 
-static inline signed char rf_rssi(void)
+static inline unsigned char rf_rssi(void)
 {
-	return ReadSingleReg(RSSI);
+	return (signed char)ReadSingleReg(RSSI) + 0x80;
 }
 
 static inline void rf_tx(unsigned char *buffer, unsigned char length)
