@@ -56,6 +56,7 @@ static unsigned char disp_char_map[] = {
 	['o'] = _c_|_d_|_e_|_g_,
 	['t'] = _f_|_e_|_d_|_g_,
 	['?'] = _a_|_b_|_g_|_e_,
+	['`'] = _f_|_g_,
 };
 
 void display_test()

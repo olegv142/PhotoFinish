@@ -186,7 +186,15 @@ enum {
 	btn_event = -2
 };
 
-static int chk_ir_cb()
+static int monitor_btn()
+{
+	if (!(P1IN & PING_BTN)) {
+		return btn_event;
+	}
+	return 0;
+}
+
+static int monitor_ir()
 {
 	if (g_no_ir_gen_ != g_no_ir_gen) {
 		if (!g_no_ir_reported)
@@ -196,9 +204,16 @@ static int chk_ir_cb()
 		if (g_no_ir_reported && (int)(g_wc.ticks - g_no_ir_expire) > 0)
 			return ir_event;
 	}
-	if (!(P1IN & PING_BTN)) {
-		return btn_event;
-	}
+	return 0;
+}
+
+static int monitor_events()
+{
+	int e;
+	if ((e = monitor_ir()))
+		return e;
+	if ((e = monitor_btn()))
+		return e;
 	return 0;
 }
 
@@ -208,18 +223,21 @@ static void wait_start()
 		int r;
 		// Wait start message monitoring IR at the same time
 		chk_ir_ctx_init();
-		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, chk_ir_cb))) {
+		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, monitor_events))) {
 			switch (g_rf.rx.p.type) {
 			case pkt_start:
+				// Start message received
 				g_timeout = 0;
 				wc_reset(&g_wc);
 				wc_advance(&g_wc, g_rf.rx.p.start.offset);
 				return;
 			case pkt_ping:
-				display_msg("PIng");
+				// Ping message received
+				beep_on();
+				display_rssi();
 				wc_delay(&g_wc, SHORT_DELAY_TICKS);
 				rfb_send_msg(&g_rf, pkt_ping);
-				display_clr();
+				beep_off();
 				break;
 			case pkt_reset:
 				// Start wants to reinitialize communication
@@ -244,16 +262,20 @@ static void wait_start()
 		}
 		if (r == btn_event) {
 			// Send ping to start
-			beep_on();
-			display_msg("PIng");
-			rfb_send_msg(&g_rf, pkt_ping);
-			r = rfb_receive_valid_msg(&g_rf, pkt_ping);
-			if (r) {
+			for (;;) {
+				beep_on();
+				display_msg("PIng");
+				rfb_send_msg(&g_rf, pkt_ping);
+				r = rfb_receive_valid_msg_(&g_rf, pkt_ping, monitor_btn);
+				if (!r) {
+					display_rssi();
+					beep_off();
+					break;
+				}
+				if (r == btn_event)
+					continue;
 				rfb_err_msg(r);
-			} else {
-				display_hex_(rf_rssi(), 2, 2);
-				display_msg_("--", 0, 2);
-				beep_off();
+				break;
 			}
 			continue;
 		}

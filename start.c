@@ -20,6 +20,16 @@ static struct wc_ctx  g_wc;
 static int            g_show_clock;
 static unsigned       g_start_offset;
 
+static inline void beep_on()
+{
+	P1OUT |= BEEP_BIT;
+}
+
+static inline void beep_off()
+{
+	P1OUT &= ~BEEP_BIT;
+}
+
 static void show_channel_info(unsigned char ch)
 {
 	rf_set_channel(ch);
@@ -84,14 +94,14 @@ static void test_channel(unsigned char ch, unsigned char flags)
 	rf_set_channel(ch);
 
 	if (!(flags & SETUP_F_TEST))
-		P1OUT |= BEEP_BIT;
+		beep_on();
 
 	// Wait response message
 	rfb_receive_msg_checked(&g_rf, pkt_setup_resp);
 	// Calculate transmission delay
 	g_start_offset = (g_wc.ticks - ts - SETUP_RESP_DELAY) / 2;
 
-	P1OUT &= ~BEEP_BIT;
+	beep_off();
 #ifdef SHOW_RSSI
 	// Handshake completed, show signal strength info
 	display_set_dp(1);
@@ -105,10 +115,17 @@ enum {
 	btn_user  = -2,
 };
 
-static int wait_btn_cb()
+static int monitor_btns()
 {
 	if (!(P1IN & START_BTN_BIT))
 		return btn_start;
+	if (!(P1IN & BTN_BIT))
+		return btn_user;
+	return 0;
+}
+
+static int monitor_user_btn()
+{
 	if (!(P1IN & BTN_BIT))
 		return btn_user;
 	return 0;
@@ -163,14 +180,14 @@ static void do_start( void )
 	g_show_clock = 1;
 
 	// Send start message
-	P1OUT |= BEEP_BIT;
+	beep_on();
 	++g_rf.tx.sn;
 	for (r = REPEAT_MSGS; r; --r) {
 		g_rf.tx.start.offset = g_start_offset + (g_wc.ticks - ts);
 		rfb_send_msg(&g_rf, pkt_start);
 		wc_delay(&g_wc, REPEAT_MSGS_DELAY);
 	}
-	P1OUT &= ~BEEP_BIT;
+	beep_off();
 
 	// Wait finish message
 	r = rfb_receive_valid_msg(&g_rf, pkt_finish);
@@ -191,9 +208,9 @@ static void do_start( void )
 	}
 
 	// Short beep on finish
-	P1OUT |= BEEP_BIT;
+	beep_on();
 	wc_delay(&g_wc, SHORT_DELAY_TICKS);
-	P1OUT &= ~BEEP_BIT;
+	beep_off();
 }
 
 int main( void )
@@ -279,41 +296,46 @@ int main( void )
 	for (;;) {
 		int r;
 		// Wait status message or the start button press
-		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, wait_btn_cb)))
+		if (!(r = rfb_receive_valid_msg_(&g_rf, -1, monitor_btns)))
 		{
 			switch (g_rf.rx.p.type) {
 			case pkt_status:
 				// Status message received
 				if (g_rf.rx.p.status.flags & sta_no_ir) {
 					display_msg("noIr");
-					P1OUT |= BEEP_BIT;
+					beep_on();
 					wc_delay(&g_wc, SHORT_DELAY_TICKS);
-					P1OUT &= ~BEEP_BIT;
+					beep_off();
 				} else
 					display_msg("Good");
 				break;
 			case pkt_ping:
 				// Ping message received
-				display_msg("PIng");
+				beep_on();
+				display_rssi();
 				wc_delay(&g_wc, SHORT_DELAY_TICKS);
 				rfb_send_msg(&g_rf, pkt_ping);
-				display_clr();
+				beep_off();
 				break;
 			}
 			continue;
 		}
 		if (r == btn_user) {
 			/* Send ping */
-			P1OUT |= BEEP_BIT;
-			display_msg("PIng");
-			rfb_send_msg(&g_rf, pkt_ping);
-			r = rfb_receive_valid_msg(&g_rf, pkt_ping);
-			if (r) {
+			for (;;) {
+				beep_on();
+				display_msg("PIng");
+				rfb_send_msg(&g_rf, pkt_ping);
+				r = rfb_receive_valid_msg_(&g_rf, pkt_ping, monitor_user_btn);
+				if (!r) {
+					display_rssi();
+					beep_off();
+					break;
+				}
+				if (r == btn_user)
+					continue;
 				rfb_err_msg(r);
-			} else {
-				display_hex_(rf_rssi(), 2, 2);
-				display_msg_("--", 0, 2);
-				P1OUT &= ~BEEP_BIT;
+				break;
 			}
 			continue;
 		}

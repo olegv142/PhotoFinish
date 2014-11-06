@@ -91,3 +91,5 @@ static inline void unpack4nibbles(unsigned packed, unsigned char nibbles[4])
 	nibbles[2] = (packed >> 8) & 0xf;
 	nibbles[3] = (packed >> 12) & 0xf;
 }
+
+void display_rssi();

@@ -1,4 +1,6 @@
 #include "utils.h"
+#include "rf_utils.h"
+#include "display.h"
 #include "wc.h"
 
 void stabilize_clock()
@@ -106,3 +108,8 @@ int wait_btn_release_tout(struct wc_ctx* wc, unsigned ticks)
 	return 0;
 }
 
+void display_rssi()
+{
+	display_hex_(rf_rssi(), 2, 2);
+	display_msg_("`-", 0, 2);
+}
