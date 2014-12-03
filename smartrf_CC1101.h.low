@@ -44,7 +44,7 @@
 #define SMARTRF_SETTING_FREQ0      0x76
 #define SMARTRF_SETTING_MDMCFG4    0xF3
 
-// The data rate defined by the following 2 registers is set by hand to some value below documented limit
+// The data rate defined by the following 2 registers is set by hand to the value ~200 baud (below documented limit)
 // It works fine and gives range ~300м with just 25см wire as antenna
 #define SMARTRF_SETTING_MDMCFG3    0x00
 #define SMARTRF_SETTING_MDMCFG2    0x03
