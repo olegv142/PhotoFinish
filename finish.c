@@ -262,10 +262,10 @@ static void wait_start()
 		}
 		if (r == btn_event) {
 			// Send ping to start
+			beep_on();
+			display_msg("PIng");
+			rfb_send_msg(&g_rf, pkt_ping);
 			for (;;) {
-				beep_on();
-				display_msg("PIng");
-				rfb_send_msg(&g_rf, pkt_ping);
 				r = rfb_receive_valid_msg_(&g_rf, pkt_ping, monitor_btn);
 				if (!r) {
 					display_rssi();
