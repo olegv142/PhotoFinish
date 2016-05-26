@@ -27,6 +27,7 @@ static int      g_ir_timer;
 static int      g_ir_burst;
 static int      g_no_ir;
 static unsigned g_no_ir_gen;
+static unsigned g_start_gen;
 static int      g_beep;
 
 static int is_calibrating(void)
@@ -73,7 +74,7 @@ static void set_state(state_t st)
 	g_state = st;
 }
 
-static int ir_divider()
+static int ir_divider(void)
 {
 	if (g_state == st_idle)
 		return 0;
@@ -125,7 +126,7 @@ __interrupt void watchdog_timer(void)
 }
 
 // Setup working channel
-static void setup_channel()
+static void setup_channel(void)
 {
 	int r;
 
@@ -175,18 +176,19 @@ static unsigned g_no_ir_gen_;
 static unsigned g_no_ir_expire;
 static int      g_no_ir_reported;
 
-static void chk_ir_ctx_init()
+static void chk_ir_ctx_init(void)
 {
 	g_no_ir_gen_   = g_no_ir_gen;
 	g_no_ir_expire = g_wc.ticks + 10 * WD_HZ;
 }
 
 enum {
-	ir_event  = -1,
-	btn_event = -2
+	ir_event     = -1,
+	btn_event    = -2,
+	finish_event = -3
 };
 
-static int monitor_btn()
+static int monitor_btn(void)
 {
 	if (!(P1IN & PING_BTN)) {
 		return btn_event;
@@ -194,7 +196,7 @@ static int monitor_btn()
 	return 0;
 }
 
-static int monitor_ir()
+static int monitor_ir(void)
 {
 	if (g_no_ir_gen_ != g_no_ir_gen) {
 		if (!g_no_ir_reported)
@@ -207,7 +209,7 @@ static int monitor_ir()
 	return 0;
 }
 
-static int monitor_events()
+static int monitor_events(void)
 {
 	int e;
 	if ((e = monitor_ir()))
@@ -217,7 +219,16 @@ static int monitor_events()
 	return 0;
 }
 
-static void wait_start()
+static int monitor_finish(void)
+{
+	if (g_timeout)
+		return finish_event;
+	if (g_start_gen != g_no_ir_gen)
+		return finish_event;
+	return 0;
+}
+
+static void wait_start(void)
 {
 	for (;;) {
 		int r;
@@ -287,24 +298,24 @@ static void wait_start()
 	}
 }
 
-static void detect_finish()
+static void detect_finish(void)
 {
-	unsigned no_ir_gen = g_no_ir_gen;
-
-	for (;;)
-	{
-		if (g_timeout)
+	g_start_gen = g_no_ir_gen;
+	for (;;) {
+		if (!rfb_receive_valid_msg_(&g_rf, -1, monitor_finish)) {
+			if (g_rf.rx.p.type == pkt_reset) {
+				// Start wants to reinitialize communication
+				reset();
+			}
+			// Ignore all other packets till finish
+		} else {
+			// Finished
 			return;
-
-		if (no_ir_gen != g_no_ir_gen)
-			return;
-
-		// Sleep till next clock tick
-		__low_power_mode_2();
+		}
 	}
 }
 
-static void report_finish()
+static void report_finish(void)
 {
 	int i;
 
