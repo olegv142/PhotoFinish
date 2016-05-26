@@ -260,9 +260,11 @@ static void wait_start()
 			}
 			continue;
 		}
-		if (r == btn_event) {
+		if (r == btn_event)
+		{
 			// Send ping to start
 			for (;;) {
+				wait_btn_release();
 				beep_on();
 				display_msg("PIng");
 				rfb_send_msg(&g_rf, pkt_ping);
@@ -272,8 +274,10 @@ static void wait_start()
 					beep_off();
 					break;
 				}
-				if (r == btn_event)
+				if (r == btn_event) {
+					beep_off();
 					continue;
+				}
 				rfb_err_msg(r);
 				break;
 			}

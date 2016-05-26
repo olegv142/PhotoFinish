@@ -322,9 +322,11 @@ int main( void )
 			}
 			continue;
 		}
-		if (r == btn_user) {
+		if (r == btn_user)
+		{
 			/* Send ping */
 			for (;;) {
+				wait_btn_release();
 				beep_on();
 				display_msg("PIng");
 				rfb_send_msg(&g_rf, pkt_ping);
@@ -334,8 +336,10 @@ int main( void )
 					beep_off();
 					break;
 				}
-				if (r == btn_user)
+				if (r == btn_user) {
+					beep_off();
 					continue;
+				}
 				rfb_err_msg(r);
 				break;
 			}
