@@ -47,7 +47,7 @@ static void show_channel_info(unsigned char ch)
 #endif
 }
 
-static unsigned char select_channel(unsigned char start_ch)
+static unsigned char scan_select_channel(unsigned char start_ch)
 {
 	unsigned char ch;
 	// Channels scan loop
@@ -132,11 +132,13 @@ static int monitor_user_btn()
 }
 
 typedef enum {
-	mode_normal,
 	/* Resume mode is to reconnect to finish which is already listening on the particular channel.
 	 * The start just send reset packet to the finish and then follows standard startup routine.
 	 */
 	mode_resume,
+	/* Begin with choosing channel
+	 */
+	mode_scan,
 	/* In test mode the start iteratively choosing successive channels and sending setup packets.
 	 * The finish is just reset itself after responding to the setup packet.
 	 */
@@ -215,7 +217,7 @@ static void do_start( void )
 
 int main( void )
 {
-	start_mode_t mode = mode_normal;
+	start_mode_t mode = mode_resume;
 	struct stored_channel const* sch;
 	unsigned char ch, se;
 
@@ -235,8 +237,8 @@ int main( void )
 		 */
 		if (!wait_btn_release_tout(&g_wc, MODE_SELECT_DELAY))
 			break;
-		mode = mode_resume;
-		display_msg("reSu");
+		mode = mode_scan;
+		display_msg("Scan");
 		if (!wait_btn_release_tout(&g_wc, MODE_SELECT_DELAY))
 			break;
 		mode = mode_test;
@@ -245,7 +247,7 @@ int main( void )
 		break;
 	}
 
-	if (mode == mode_normal)
+	if (mode == mode_scan)
 		// Wait button press to start channels scan
 		wait_btn();
 
@@ -262,9 +264,9 @@ int main( void )
 			show_channel_info(ch);
 			break;
 		}
-	case mode_normal:
-		// Allow user to select channel
-		ch = select_channel(sch ? sch->ch : 0);
+	case mode_scan:
+		// Allow user to select new channel
+		ch = scan_select_channel(sch ? sch->ch : 0);
 		save_channel(ch, se);
 		break;
 	case mode_test:
