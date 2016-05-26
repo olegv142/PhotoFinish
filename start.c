@@ -15,10 +15,22 @@
 // Uncomment to show signal strength indicator
 //#define SHOW_RSSI
 
+#define START_DEBOUNCE_TICKS 64
+
+// Button events
+enum {
+	btn_start_pressed  = -1,
+	btn_start_released = -2,
+	btn_user           = -3,
+};
+
 static struct rf_buff g_rf;
 static struct wc_ctx  g_wc;
 static int            g_show_clock;
 static unsigned       g_start_offset;
+
+static volatile unsigned g_start_pressed;
+static int               g_start_last_status;
 
 static inline void beep_on()
 {
@@ -110,17 +122,33 @@ static void test_channel(unsigned char ch, unsigned char flags)
 #endif
 }
 
-enum {
-	btn_start = -1,
-	btn_user  = -2,
-};
+// Start button debounce routine called from WDT ISR
+static void start_btn_chk(void)
+{
+	if (!(P1IN & START_BTN_BIT)) {
+		g_start_pressed = START_DEBOUNCE_TICKS;
+	} else {
+		unsigned cnt = g_start_pressed;
+		if (cnt) {
+			g_start_pressed = cnt - 1;
+		}
+	}
+}
 
 static int monitor_btns()
 {
-	if (!(P1IN & START_BTN_BIT))
-		return btn_start;
-	if (!(P1IN & BTN_BIT))
+	int start_pressed = g_start_pressed != 0;
+	if (!(P1IN & START_BTN_BIT)) {
+		g_start_pressed = START_DEBOUNCE_TICKS;
+		start_pressed = 1;
+	}
+	if (g_start_last_status != start_pressed) {
+		g_start_last_status = start_pressed;
+		return start_pressed ? btn_start_pressed : btn_start_released;
+	}
+	if (!(P1IN & BTN_BIT)) {
 		return btn_user;
+	}
 	return 0;
 }
 
@@ -169,7 +197,14 @@ static void setup_start_ports( void )
 	P1OUT |= START_BTN_BIT;
 }
 
-static void do_start( void )
+static void beep(void)
+{
+	beep_on();
+	wc_delay(&g_wc, SHORT_DELAY_TICKS);
+	beep_off();
+}
+
+static void start_and_wait(void)
 {
 	int r;
 	unsigned ts;
@@ -210,9 +245,7 @@ static void do_start( void )
 	}
 
 	// Short beep on finish
-	beep_on();
-	wc_delay(&g_wc, SHORT_DELAY_TICKS);
-	beep_off();
+	beep();
 }
 
 int main( void )
@@ -305,9 +338,7 @@ int main( void )
 				// Status message received
 				if (g_rf.rx.p.status.flags & sta_no_ir) {
 					display_msg("noIr");
-					beep_on();
-					wc_delay(&g_wc, SHORT_DELAY_TICKS);
-					beep_off();
+					beep();
 				} else
 					display_msg("Good");
 				break;
@@ -345,9 +376,14 @@ int main( void )
 			}
 			continue;
 		}
-		if (r == btn_start) {
+		if (r == btn_start_pressed) {
 			/* Start button pressed */
-			do_start();
+			start_and_wait();
+			continue;
+		}
+		if (r == btn_start_released) {
+			/* Start button released */
+			beep();
 			continue;
 		}
 		rfb_err_msg(r);
@@ -358,6 +394,7 @@ int main( void )
 #pragma vector=WDT_VECTOR
 __interrupt void watchdog_timer(void)
 {
+	start_btn_chk();
 	if (wc_update(&g_wc) && g_show_clock)
 		display_bin(g_wc.d);
 	display_refresh();
