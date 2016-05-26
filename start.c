@@ -324,10 +324,10 @@ int main( void )
 		}
 		if (r == btn_user) {
 			/* Send ping */
-			beep_on();
-			display_msg("PIng");
-			rfb_send_msg(&g_rf, pkt_ping);
 			for (;;) {
+				beep_on();
+				display_msg("PIng");
+				rfb_send_msg(&g_rf, pkt_ping);
 				r = rfb_receive_valid_msg_(&g_rf, pkt_ping, monitor_user_btn);
 				if (!r) {
 					display_rssi();
