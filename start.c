@@ -195,6 +195,8 @@ static void setup_start_ports( void )
 	P1DIR &= ~START_BTN_BIT;
 	P1REN |= START_BTN_BIT;
 	P1OUT |= START_BTN_BIT;
+	g_start_pressed = START_DEBOUNCE_TICKS;
+	g_start_last_status = 1;
 }
 
 static void beep(void)
@@ -280,9 +282,8 @@ int main( void )
 		break;
 	}
 
-	if (mode == mode_scan)
-		// Wait button press to start channels scan
-		wait_btn();
+	// Wait button press to start channels scan
+	wait_btn();
 
 	// Use current clock as sesson id
 	se = g_wc.ticks;
