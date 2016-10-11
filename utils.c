@@ -43,6 +43,10 @@ void setup_ports()
 	P1DIR &= ~BTN_BIT;
 	P1REN |= BTN_BIT;
 	P1OUT |= BTN_BIT;
+	// Configure analog input
+	P2SEL |= BATT_SENSE;
+	PMAPKEYID = PMAPKEY;
+	P2MAP2 = PM_ANALOG;
 }
 
 unsigned measure_vcc()
@@ -52,7 +56,7 @@ unsigned measure_vcc()
 	ADC12CTL0 = 0;
 	ADC12CTL0  = ADC12ON|ADC12SHT0_4;
 	ADC12CTL1  = ADC12SSEL_1|ADC12SHP|ADC12DIV_6; // ACLK/6 ~ 1.1MHz
-	ADC12MCTL0 = ADC12INCH_11|ADC12SREF_1; // VCC/2
+	ADC12MCTL0 = ADC12INCH_2|ADC12SREF_1; // A2
 	ADC12CTL0 |= ADC12ENC;
 	__delay_cycles(10000);
 	ADC12CTL0 |= ADC12SC;
@@ -61,8 +65,8 @@ unsigned measure_vcc()
 	v = ADC12MEM0;
 	ADC12CTL0 &= ~(ADC12ON|ADC12ENC);
 	REFCTL0 = 0;
-	// Here we have 4096 ~ 4V
-	return v - (v >> 5);
+	// Here we have 4096 ~ 2V
+	return (v >> 1) - (v >> 7) - (v >> 8);
 }
 
 void set_vcore_up(unsigned level)

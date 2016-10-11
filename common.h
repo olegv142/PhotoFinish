@@ -10,6 +10,7 @@
 #define PING_BTN      BIT1       // Ping button (P1)
 #define CALIB_LED     BIT3       // IR calibration indicator (P1)
 #define CALIB_SW      BIT4       // IR calibration switch (P1)
+#define BATT_SENSE    BIT2       // battery sense input (P2)
 
 #ifndef SILENT
 // Beeper (P1)
