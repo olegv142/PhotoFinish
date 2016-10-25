@@ -9,6 +9,7 @@
 #include "rf_utils.h"
 #include "rf_buff.h"
 #include "wc.h"
+#include "uart.h"
 
 static struct rf_buff g_rf;
 static struct wc_ctx  g_wc;
@@ -336,6 +337,10 @@ static void report_finish(void)
 	}
 
 	beep_off();
+
+	if (P2IN & XSTATUS) {
+		uart_send_time_hex(g_rf.tx.finish.time);
+	}
 }
 
 static void setup_finish_ports( void )
@@ -345,6 +350,7 @@ static void setup_finish_ports( void )
 	P1REN |= PING_BTN;
 	P1OUT |= PING_BTN;
 	P2DIR &= ~RX_BIT;
+	P2DIR &= ~XSTATUS;
 }
 
 int main( void )
@@ -352,6 +358,7 @@ int main( void )
 	stop_watchdog();
 	setup_finish_ports();
 	setup_clock();
+	setup_uart();
 	rf_init(sizeof(struct packet));
 	configure_timer_38k();
 	timer_38k_enable(1);

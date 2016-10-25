@@ -47,6 +47,7 @@ void setup_ports()
 	P2SEL |= BATT_SENSE;
 	PMAPKEYID = PMAPKEY;
 	P2MAP2 = PM_ANALOG;
+	PMAPKEYID = 0;
 }
 
 unsigned measure_vcc()
